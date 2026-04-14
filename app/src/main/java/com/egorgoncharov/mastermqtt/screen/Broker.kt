@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ImportExport
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Refresh
@@ -75,19 +74,23 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavHostController
 import com.egorgoncharov.mastermqtt.Utils
-import com.egorgoncharov.mastermqtt.dto.MQTTConnection
-import com.egorgoncharov.mastermqtt.dto.db.ConnectionType
-import com.egorgoncharov.mastermqtt.dto.db.MQTTConnectionState
 import com.egorgoncharov.mastermqtt.manager.PermissionManager
-import com.egorgoncharov.mastermqtt.manager.mqtt.MQTTManager
+import com.egorgoncharov.mastermqtt.manager.mqtt.MqttConnection
+import com.egorgoncharov.mastermqtt.manager.mqtt.MqttManager
 import com.egorgoncharov.mastermqtt.model.dao.BrokerDao
+import com.egorgoncharov.mastermqtt.model.dao.MessageDao
+import com.egorgoncharov.mastermqtt.model.dao.TopicDao
 import com.egorgoncharov.mastermqtt.model.entity.BrokerEntity
+import com.egorgoncharov.mastermqtt.model.types.ConnectionType
+import com.egorgoncharov.mastermqtt.model.types.MQTTConnectionState
 import com.egorgoncharov.mastermqtt.ui.components.Empty
 import com.egorgoncharov.mastermqtt.ui.components.EntityManagingFormState
+import com.egorgoncharov.mastermqtt.ui.components.Error
 import com.egorgoncharov.mastermqtt.ui.components.FormFieldState
 import com.egorgoncharov.mastermqtt.ui.components.FormIsland
 import com.egorgoncharov.mastermqtt.ui.components.ItemAction
@@ -99,28 +102,29 @@ import com.egorgoncharov.mastermqtt.ui.components.ipRegex
 import com.egorgoncharov.mastermqtt.ui.components.nameRegex
 import com.egorgoncharov.mastermqtt.ui.components.update
 import com.egorgoncharov.mastermqtt.ui.components.validateNumericalInput
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-class BrokerViewModel(private val brokerDao: BrokerDao, private val mqttManager: MQTTManager) :
+class BrokerViewModel(
+    private val brokerDao: BrokerDao,
+    private val topicDao: TopicDao,
+    private val messageDao: MessageDao,
+    private val mqttManager: MqttManager
+) :
     ViewModel() {
     companion object {
-        fun Factory(brokerDao: BrokerDao, mqttManager: MQTTManager): ViewModelProvider.Factory =
+        fun Factory(brokerDao: BrokerDao, topicDao: TopicDao, messageDao: MessageDao, mqttManager: MqttManager): ViewModelProvider.Factory =
             viewModelFactory {
-                initializer { BrokerViewModel(brokerDao, mqttManager) }
+                initializer { BrokerViewModel(brokerDao, topicDao, messageDao, mqttManager) }
             }
     }
 
     private val _manageBrokerState = MutableStateFlow(ManageBrokerState())
     private val _notificationPermissionState = MutableStateFlow(NotificationPermissionState())
 
-    val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     val connections = mqttManager.clientsFlow
     val manageBrokerState = _manageBrokerState.asStateFlow()
     val notificationPermissionState = _notificationPermissionState.asStateFlow()
@@ -155,17 +159,23 @@ class BrokerViewModel(private val brokerDao: BrokerDao, private val mqttManager:
         { if (it.matches(nameRegex)) null else "Invalid name format" }
     ) { copy(name = it) }
 
-    private fun handleHostChange(host: String) = _manageBrokerState.update(
-        { it.host },
-        host,
-        { if (it.matches(hostRegex) || it.matches(ipRegex)) null else "Invalid domain or IPv4 format" }
-    ) { copy(host = it) }
+    private fun handleHostChange(host: String) {
+        _manageBrokerState.update(
+            { it.host },
+            host,
+            { if (it.matches(hostRegex) || it.matches(ipRegex)) null else "Invalid domain or IPv4 format" }
+        ) { copy(host = it) }
+        checkExists()
+    }
 
-    private fun handlePortChange(port: String) = _manageBrokerState.update(
-        { it.port },
-        port.toIntOrNull() ?: 0,
-        { validateNumericalInput(port, true, 0.0, 65535.0) }
-    ) { copy(port = it) }
+    private fun handlePortChange(port: String) {
+        _manageBrokerState.update(
+            { it.port },
+            port.toIntOrNull() ?: 0,
+            { validateNumericalInput(port, true, 0.0, 65535.0) }
+        ) { copy(port = it.copy(value = it.value.coerceIn(0, 65535))) }
+        checkExists()
+    }
 
     private fun handleAuthenticationSettingsChange(authenticated: Boolean, user: String, password: String) {
         _manageBrokerState.update(
@@ -201,18 +211,18 @@ class BrokerViewModel(private val brokerDao: BrokerDao, private val mqttManager:
         { it.keepAlive },
         keepAlive.toIntOrNull() ?: 0,
         { validateNumericalInput(keepAlive, true, 1.0) }
-    ) { copy(keepAlive = it) }
+    ) { copy(keepAlive = it.copy(value = it.value.coerceIn(0, Int.MAX_VALUE - 1))) }
 
     private fun handleReconnectRetriesChange(reconnectRetries: String) = _manageBrokerState.update(
         { it.reconnectRetries },
         reconnectRetries.toIntOrNull() ?: 0,
         { validateNumericalInput(reconnectRetries, true, 0.0) }
-    ) { copy(reconnectRetries = it) }
+    ) { copy(reconnectRetries = it.copy(value = it.value.coerceIn(0, Int.MAX_VALUE - 1))) }
 
     private fun saveBroker() {
         if (!manageBrokerState.value.valid()) return
         val state = manageBrokerState.value
-        scope.launch {
+        viewModelScope.launch {
             brokerDao.save(
                 BrokerEntity(
                     id = state.reference?.id ?: UUID.randomUUID().toString(),
@@ -272,7 +282,7 @@ class BrokerViewModel(private val brokerDao: BrokerDao, private val mqttManager:
         _notificationPermissionState.update { it.copy(showRequestDialog = !it.showRequestDialog) }
     }
 
-    private fun toggleConnection(connection: MQTTConnection) {
+    private fun toggleConnection(connection: MqttConnection) {
         if (!notificationPermissionState.value.granted) {
             _notificationPermissionState.update { it.copy(showRequestDialog = true) }
             return
@@ -282,7 +292,17 @@ class BrokerViewModel(private val brokerDao: BrokerDao, private val mqttManager:
     }
 
     private fun deleteBroker(broker: BrokerEntity) {
-        scope.launch { brokerDao.delete(broker) }
+        viewModelScope.launch {
+            brokerDao.delete(broker)
+            topicDao.deleteByBroker(broker.id)
+            messageDao.deleteByBroker(broker.id)
+        }
+    }
+
+    private fun checkExists() {
+        viewModelScope.launch {
+            _manageBrokerState.update { it.copy(exists = brokerDao.existsByAddress(manageBrokerState.value.host.value, manageBrokerState.value.port.value)) }
+        }
     }
 }
 
@@ -306,13 +326,14 @@ sealed interface BrokerEvent {
     data class NotificationPermissionResult(val isGranted: Boolean) : BrokerEvent
     object ToggleNotificationPermissionRequestDialog : BrokerEvent
 
-    data class ToggleConnection(val connection: MQTTConnection) : BrokerEvent
+    data class ToggleConnection(val connection: MqttConnection) : BrokerEvent
     data class DeleteBroker(val broker: BrokerEntity) : BrokerEvent
 }
 
 data class ManageBrokerState(
     override val visible: Boolean = false,
     override val reference: BrokerEntity? = null,
+    val exists: Boolean = false,
     val name: FormFieldState<String> = FormFieldState(reference?.name ?: ""),
     val host: FormFieldState<String> = FormFieldState(reference?.ip ?: ""),
     val port: FormFieldState<Int> = FormFieldState(reference?.port ?: 1883),
@@ -355,9 +376,6 @@ fun BrokersScreen(vm: BrokerViewModel, navController: NavHostController) {
     }
     Column(Modifier.fillMaxWidth()) {
         SettingsTopBar(navController, "Brokers Management") {
-            button(onClick = { /* TODO: Import/Export */ }) {
-                Icon(modifier = Modifier.size(24.dp), imageVector = Icons.Default.ImportExport, contentDescription = null)
-            }
             button(onClick = { vm.onEvent(BrokerEvent.ToggleManageForm(null)) }) {
                 Icon(modifier = Modifier.size(24.dp), imageVector = Icons.Default.AddCircle, contentDescription = null)
             }
@@ -374,7 +392,7 @@ fun BrokersScreen(vm: BrokerViewModel, navController: NavHostController) {
 }
 
 @Composable
-fun BrokerContainer(vm: BrokerViewModel, connection: MQTTConnection) {
+fun BrokerContainer(vm: BrokerViewModel, connection: MqttConnection) {
     val context = LocalContext.current
     val permissionManager by remember { mutableStateOf(PermissionManager(context)) }
     val notificationPermissionState by vm.notificationPermissionState.collectAsStateWithLifecycle()
@@ -426,7 +444,7 @@ fun BrokerContainer(vm: BrokerViewModel, connection: MQTTConnection) {
 
 @Composable
 fun BrokerHead(
-    connection: MQTTConnection,
+    connection: MqttConnection,
     expanded: MutableState<Boolean>,
     onEvent: (BrokerEvent) -> Unit
 ) {
@@ -514,7 +532,7 @@ fun BrokerHead(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun BrokerBody(connection: MQTTConnection) {
+fun BrokerBody(connection: MqttConnection) {
     HorizontalDivider(
         modifier = Modifier.padding(vertical = 12.dp),
         thickness = 0.5.dp,
@@ -692,6 +710,11 @@ fun BrokerManage(state: ManageBrokerState, onEvent: (BrokerEvent) -> Unit) {
                 }
             }
         }
+        if (state.exists && state.reference == null) {
+            Column(Modifier.padding(horizontal = 16.dp)) {
+                Error("${state.host.value}:${state.port.value} already exists")
+            }
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -703,7 +726,7 @@ fun BrokerManage(state: ManageBrokerState, onEvent: (BrokerEvent) -> Unit) {
                 onClick = { onEvent(BrokerEvent.ToggleManageForm(null)) }) { Text("Cancel") }
             Button(
                 modifier = Modifier.weight(1f),
-                enabled = state.valid(),
+                enabled = state.valid() && (state.reference != null || !state.exists),
                 onClick = { onEvent(BrokerEvent.BrokerSaved) }
             ) {
                 Text("Save")

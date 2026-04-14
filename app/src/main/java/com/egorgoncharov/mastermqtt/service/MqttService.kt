@@ -12,22 +12,22 @@ import com.egorgoncharov.mastermqtt.R
 import com.egorgoncharov.mastermqtt.manager.DatabaseManager
 import com.egorgoncharov.mastermqtt.manager.NotificationManager
 import com.egorgoncharov.mastermqtt.manager.SoundManager
-import com.egorgoncharov.mastermqtt.manager.mqtt.MQTTManager
+import com.egorgoncharov.mastermqtt.manager.mqtt.MqttManager
 
-class MQTTService : Service() {
+class MqttService : Service() {
     companion object {
         private const val NOTIFICATION_CHANNEL_ID = "MasterMQTTServiceChannel"
     }
 
     private lateinit var databaseManager: DatabaseManager
-    private lateinit var mqttManager: MQTTManager
+    private lateinit var mqttManager: MqttManager
     private lateinit var notificationManager: NotificationManager
     val binder = LocalBinder()
 
     inner class LocalBinder : Binder() {
-        fun service(): MQTTService = this@MQTTService
+        fun service(): MqttService = this@MqttService
 
-        fun manager(): MQTTManager = mqttManager
+        fun manager(): MqttManager = mqttManager
         fun database(): DatabaseManager = databaseManager
     }
 
@@ -35,7 +35,7 @@ class MQTTService : Service() {
         super.onCreate()
         databaseManager = DatabaseManager(applicationContext).apply { connect() }
         notificationManager = NotificationManager(applicationContext)
-        mqttManager = MQTTManager(
+        mqttManager = MqttManager(
             applicationContext,
             databaseManager.db!!.brokerDao(),
             databaseManager.db!!.topicDao(),

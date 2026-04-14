@@ -38,20 +38,23 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navDeepLink
-import com.egorgoncharov.mastermqtt.manager.mqtt.MQTTManager
+import com.egorgoncharov.mastermqtt.configuration.ConfigurationEntityConverter
+import com.egorgoncharov.mastermqtt.manager.ConfigurationManager
+import com.egorgoncharov.mastermqtt.manager.mqtt.MqttManager
 import com.egorgoncharov.mastermqtt.model.dao.BrokerDao
 import com.egorgoncharov.mastermqtt.model.dao.MessageDao
 import com.egorgoncharov.mastermqtt.model.dao.TopicDao
 import com.egorgoncharov.mastermqtt.screen.BrokerViewModel
 import com.egorgoncharov.mastermqtt.screen.BrokersScreen
 import com.egorgoncharov.mastermqtt.screen.GeneralSettingsScreen
+import com.egorgoncharov.mastermqtt.screen.GeneralSettingsViewModel
 import com.egorgoncharov.mastermqtt.screen.SettingsScreen
 import com.egorgoncharov.mastermqtt.screen.StreamEvent
 import com.egorgoncharov.mastermqtt.screen.StreamScreen
 import com.egorgoncharov.mastermqtt.screen.StreamViewModel
 import com.egorgoncharov.mastermqtt.screen.TopicViewModel
 import com.egorgoncharov.mastermqtt.screen.TopicsScreen
-import com.egorgoncharov.mastermqtt.service.MQTTService
+import com.egorgoncharov.mastermqtt.service.MqttService
 import com.egorgoncharov.mastermqtt.ui.theme.AppTheme
 
 sealed class NavRoute(val route: String, val label: String, val icon: ImageVector) {
@@ -71,17 +74,19 @@ sealed class NavRoute(val route: String, val label: String, val icon: ImageVecto
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val serviceIntent = Intent(this, MQTTService::class.java)
+        val serviceIntent = Intent(this, MqttService::class.java)
         startForegroundService(serviceIntent)
         enableEdgeToEdge()
         setContent {
-            var mqttService by remember { mutableStateOf<MQTTService?>(null) }
+            var mqttService by remember { mutableStateOf<MqttService?>(null) }
             MqttServiceHandler { mqttService = it }
             val dbManager = mqttService?.binder?.database() ?: return@setContent
             val mqttManager = mqttService?.binder?.manager() ?: return@setContent
             val brokerDao = dbManager.db!!.brokerDao()
             val topicDao = dbManager.db!!.topicDao()
             val messageDao = dbManager.db!!.messageDao()
+            val configurationEntityConverter = ConfigurationEntityConverter(brokerDao, topicDao)
+            val configurationManager = ConfigurationManager(applicationContext, brokerDao, topicDao, messageDao, configurationEntityConverter)
             AppTheme {
                 val navController = rememberNavController()
                 var showSettingsList by remember { mutableStateOf(false) }
@@ -93,7 +98,9 @@ class MainActivity : ComponentActivity() {
                             brokerDao = brokerDao,
                             topicDao = topicDao,
                             messageDao = messageDao,
-                            mqttManager = mqttManager
+                            mqttManager = mqttManager,
+                            configurationManager = configurationManager,
+                            configurationEntityConverter = configurationEntityConverter
                         )
                         if (showSettingsList) {
                             SettingsScreen(navController) { showSettingsList = false }
@@ -108,12 +115,12 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MqttServiceHandler(
     context: Context = LocalContext.current,
-    onServiceConnected: (MQTTService) -> Unit
+    onServiceConnected: (MqttService) -> Unit
 ) {
     DisposableEffect(context) {
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-                val binder = service as? MQTTService.LocalBinder
+                val binder = service as? MqttService.LocalBinder
                 binder?.service()?.let { mqttService ->
                     onServiceConnected(mqttService)
                 }
@@ -123,7 +130,7 @@ fun MqttServiceHandler(
             }
         }
 
-        val intent = Intent(context, MQTTService::class.java)
+        val intent = Intent(context, MqttService::class.java)
         context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
         onDispose {
             context.unbindService(connection)
@@ -139,7 +146,9 @@ private fun AppNavHost(
     brokerDao: BrokerDao,
     topicDao: TopicDao,
     messageDao: MessageDao,
-    mqttManager: MQTTManager
+    mqttManager: MqttManager,
+    configurationManager: ConfigurationManager,
+    configurationEntityConverter: ConfigurationEntityConverter
 ) {
     NavHost(
         navController = navController,
@@ -152,7 +161,7 @@ private fun AppNavHost(
                 Column(Modifier.fillMaxSize()) {
                     BrokersScreen(
                         vm = viewModel(
-                            factory = BrokerViewModel.Factory(brokerDao, mqttManager)
+                            factory = BrokerViewModel.Factory(brokerDao, topicDao, messageDao, mqttManager)
                         ), navController
                     )
                 }
@@ -164,7 +173,7 @@ private fun AppNavHost(
                 Column(Modifier.fillMaxSize()) {
                     TopicsScreen(
                         vm = viewModel(
-                            factory = TopicViewModel.Factory(brokerDao, topicDao)
+                            factory = TopicViewModel.Factory(brokerDao, topicDao, messageDao)
                         ),
                         navController
                     )
@@ -175,7 +184,12 @@ private fun AppNavHost(
         composable(NavRoute.General.route) {
             Scaffold(Modifier.padding(20.dp)) {
                 Column(Modifier.fillMaxSize()) {
-                    GeneralSettingsScreen(navController)
+                    GeneralSettingsScreen(
+                        vm = viewModel(
+                            factory = GeneralSettingsViewModel.Factory(brokerDao, topicDao, configurationManager, configurationEntityConverter)
+                        ),
+                        navController = navController
+                    )
                 }
             }
         }

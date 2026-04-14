@@ -16,7 +16,7 @@ import com.egorgoncharov.mastermqtt.model.entity.TopicEntity
         TopicEntity::class,
         MessageEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

@@ -17,6 +17,12 @@ interface BrokerDao : BaseDao<BrokerEntity> {
     @Query("SELECT * FROM brokers WHERE id IN (:ids) ORDER BY displayIndex")
     suspend fun findById(ids: List<String>): List<BrokerEntity>
 
+    @Query("SELECT * FROM brokers WHERE ip || ':' || port = :address")
+    suspend fun findByAddress(address: String): BrokerEntity?
+
+    @Query("SELECT EXISTS(SELECT 1 FROM brokers WHERE ip = :ip AND port = :port)")
+    suspend fun existsByAddress(ip: String, port: Int): Boolean
+
     @Query("SELECT * FROM brokers WHERE removed = 0 ORDER BY displayIndex")
     fun streamBrokers(): Flow<List<BrokerEntity>>
 

@@ -3,7 +3,7 @@ package com.egorgoncharov.mastermqtt.model.entity
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import com.egorgoncharov.mastermqtt.dto.db.ConnectionType
+import com.egorgoncharov.mastermqtt.model.types.ConnectionType
 
 @Entity(tableName = "brokers")
 data class BrokerEntity(
@@ -20,4 +20,6 @@ data class BrokerEntity(
     @ColumnInfo("reconnectAttempts") val reconnectAttempts: Int?,
     @ColumnInfo("displayIndex") val displayIndex: Int,
     @ColumnInfo("removed") val removed: Boolean
-)
+) {
+    fun address(includeProtocol: Boolean = false) = (if (includeProtocol) "${connectionType.name.lowercase()}://" else "") + "$ip:$port"
+}

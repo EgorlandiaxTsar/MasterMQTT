@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -34,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
@@ -67,31 +69,9 @@ fun AudioPicker(selectedSound: String = "", onSelect: (path: String) -> Unit) {
 
     Column {
         Button(onClick = { showDialog = true }, modifier = Modifier.fillMaxWidth()) {
-            Text(if (soundPath.isEmpty()) "Select Notification Sound" else "Change Sound")
+            Text(if (soundPath.isBlank()) "Select Notification Sound" else "Change Sound")
         }
-        if (soundPath.isNotEmpty()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(36.dp)
-                    .background(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(100.dp)),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .width(50.dp),
-                    colors = IconButtonDefaults.iconButtonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
-                    onClick = { onSelect(""); soundPath = "" }
-                ) {
-                    Icon(Icons.Filled.Cancel, contentDescription = null)
-                }
-                Spacer(Modifier.width(5.dp))
-                Icon(modifier = Modifier.size(18.dp), imageVector = Icons.Filled.Audiotrack, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
-                Spacer(Modifier.width(3.dp))
-                Text(if (soundPath.isBlank()) "Muted" else Utils.parseSoundPath(LocalContext.current, soundPath), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSecondaryContainer)
-            }
-        }
+        if (soundPath.isNotBlank()) ChosenFileCard(soundPath, Icons.Filled.Audiotrack) { onSelect(""); soundPath = "" }
         if (showDialog) {
             AlertDialog(
                 onDismissRequest = { showDialog = false },
@@ -116,5 +96,65 @@ fun AudioPicker(selectedSound: String = "", onSelect: (path: String) -> Unit) {
                 }
             )
         }
+    }
+}
+
+@Composable
+fun FilePicker(
+    label: String = "Select File",
+    mimeType: String = "*/*",
+    selectedFile: String = "",
+    onSelect: (path: String) -> Unit
+) {
+    val context = LocalContext.current
+    var filePath by remember { mutableStateOf(selectedFile) }
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            val uriString = it.toString()
+            filePath = uriString
+            onSelect(uriString)
+        }
+    }
+    Column {
+        Button(
+            onClick = { launcher.launch(arrayOf(mimeType)) },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(if (filePath.isBlank()) "Select File" else "Change File")
+        }
+        if (filePath.isNotBlank()) ChosenFileCard(filePath, Icons.Filled.InsertDriveFile) { onSelect(""); filePath = "" }
+    }
+}
+
+@Composable
+fun ChosenFileCard(path: String, icon: ImageVector? = null, onRemove: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(36.dp)
+            .background(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(100)),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(50.dp),
+            colors = IconButtonDefaults.iconButtonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
+            onClick = { onRemove() }
+        ) {
+            Icon(Icons.Filled.Cancel, contentDescription = null)
+        }
+        Spacer(Modifier.width(5.dp))
+        if (icon != null) Icon(
+            modifier = Modifier.size(18.dp),
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSecondary
+        )
+        Spacer(Modifier.width(3.dp))
+        Text(if (path.isBlank()) "Muted" else Utils.parseSoundPath(LocalContext.current, path), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSecondary)
     }
 }

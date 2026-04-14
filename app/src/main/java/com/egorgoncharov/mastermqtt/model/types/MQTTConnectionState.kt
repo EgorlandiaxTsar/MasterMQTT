@@ -1,4 +1,4 @@
-package com.egorgoncharov.mastermqtt.dto.db
+package com.egorgoncharov.mastermqtt.model.types
 
 enum class MQTTConnectionState {
     DISCONNECTED,

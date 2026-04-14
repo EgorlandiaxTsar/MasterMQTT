@@ -64,29 +64,27 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavHostController
 import com.egorgoncharov.mastermqtt.Utils
-import com.egorgoncharov.mastermqtt.dto.MQTTConnection
-import com.egorgoncharov.mastermqtt.dto.db.ConnectionType
-import com.egorgoncharov.mastermqtt.dto.db.MQTTConnectionState
-import com.egorgoncharov.mastermqtt.manager.mqtt.MQTTManager
+import com.egorgoncharov.mastermqtt.manager.mqtt.MqttConnection
+import com.egorgoncharov.mastermqtt.manager.mqtt.MqttManager
 import com.egorgoncharov.mastermqtt.model.dao.BrokerDao
 import com.egorgoncharov.mastermqtt.model.dao.MessageDao
 import com.egorgoncharov.mastermqtt.model.dao.TopicDao
 import com.egorgoncharov.mastermqtt.model.entity.MessageEntity
 import com.egorgoncharov.mastermqtt.model.entity.TopicEntity
+import com.egorgoncharov.mastermqtt.model.types.ConnectionType
+import com.egorgoncharov.mastermqtt.model.types.MQTTConnectionState
 import com.egorgoncharov.mastermqtt.ui.components.Empty
 import com.egorgoncharov.mastermqtt.ui.components.FormFieldState
 import com.egorgoncharov.mastermqtt.ui.components.FormState
 import com.egorgoncharov.mastermqtt.ui.components.SafetyButton
 import com.egorgoncharov.mastermqtt.ui.components.StreamDateTimeFilter
 import com.egorgoncharov.mastermqtt.ui.components.update
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -99,14 +97,14 @@ class StreamViewModel(
     brokerDao: BrokerDao,
     private val topicDao: TopicDao,
     private val messageDao: MessageDao,
-    mqttManager: MQTTManager
+    mqttManager: MqttManager
 ) : ViewModel() {
     companion object {
         fun Factory(
             brokerDao: BrokerDao,
             topicDao: TopicDao,
             messageDao: MessageDao,
-            mqttManager: MQTTManager
+            mqttManager: MqttManager
         ): ViewModelProvider.Factory =
             viewModelFactory {
                 initializer { StreamViewModel(brokerDao, topicDao, messageDao, mqttManager) }
@@ -119,10 +117,9 @@ class StreamViewModel(
     private var readTrackingJob: Job? = null
     private var deepLinkBound = false
 
-    val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     val brokers = brokerDao.streamBrokers()
     val topics = topicDao.streamTopics()
-    val messages = messageDao.streamNotifications()
+    val messages = messageDao.streamMessages()
     val streamFilterState = _streamFilterState.asStateFlow()
     val streamClearState = _streamClearState.asStateFlow()
     val streamChatState = _streamChatState.asStateFlow()
@@ -165,7 +162,7 @@ class StreamViewModel(
         _streamChatState.update { it.copy(selected = streamSource) }
         readTrackingJob?.cancel()
         if (streamSource != null) {
-            readTrackingJob = scope.launch {
+            readTrackingJob = viewModelScope.launch {
                 messages.collect { allMessages ->
                     val latestMessage = allMessages
                         .filter { it.topicId == streamSource.id }
@@ -190,7 +187,7 @@ class StreamViewModel(
     }
 
     private fun clearStream() {
-        scope.launch { messageDao.delete(messageDao.findAll().filter { it.topicId == streamChatState.value.selected?.id }) }
+        viewModelScope.launch { messageDao.delete(messageDao.findAll().filter { it.topicId == streamChatState.value.selected?.id }) }
         toggleStreamClearDialog()
     }
 
@@ -279,7 +276,7 @@ fun StreamScreen(vm: StreamViewModel, navController: NavHostController) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatusTopBar(navController: NavHostController, connectionStates: Map<String, MQTTConnection>) {
+fun StatusTopBar(navController: NavHostController, connectionStates: Map<String, MqttConnection>) {
     val connectedCount = connectionStates.values.filter { it.state == MQTTConnectionState.CONNECTED }.size
     var showSettingsScreen by remember { mutableStateOf(false) }
     var showConnectionsQuickView by remember { mutableStateOf(false) }
@@ -454,7 +451,7 @@ fun StreamSourceChat(vm: StreamViewModel) {
 
 @Composable
 fun StreamSourceChatHeader(
-    connections: Map<String, MQTTConnection>,
+    connections: Map<String, MqttConnection>,
     streamSourceState: TopicEntity,
     displayProcessedMessage: Boolean,
     onEvent: (StreamEvent) -> Unit
@@ -477,6 +474,11 @@ fun StreamSourceChatHeader(
                     imageVector = Icons.Default.Close,
                     contentDescription = null
                 )
+                Box(
+                    Modifier
+                        .size(14.dp)
+                        .background(color = if (streamSourceState.enabled) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(100))
+                ) {}
                 Text(
                     streamSourceState.name,
                     style = MaterialTheme.typography.titleLarge,
@@ -582,7 +584,7 @@ fun StreamSourceChatMessage(message: MessageEntity, displayProcessedMessage: Boo
 }
 
 @Composable
-fun ConnectionsQuickView(connectionStates: Map<String, MQTTConnection>) {
+fun ConnectionsQuickView(connectionStates: Map<String, MqttConnection>) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()

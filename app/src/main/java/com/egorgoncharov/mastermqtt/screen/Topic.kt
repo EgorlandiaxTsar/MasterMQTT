@@ -21,7 +21,6 @@ import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.CellTower
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterAlt
-import androidx.compose.material.icons.filled.ImportExport
 import androidx.compose.material.icons.filled.SpatialAudio
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.BottomSheetDefaults
@@ -58,18 +57,21 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavHostController
 import com.egorgoncharov.mastermqtt.Utils
-import com.egorgoncharov.mastermqtt.dto.db.ConnectionType
 import com.egorgoncharov.mastermqtt.model.dao.BrokerDao
+import com.egorgoncharov.mastermqtt.model.dao.MessageDao
 import com.egorgoncharov.mastermqtt.model.dao.TopicDao
 import com.egorgoncharov.mastermqtt.model.entity.BrokerEntity
 import com.egorgoncharov.mastermqtt.model.entity.TopicEntity
+import com.egorgoncharov.mastermqtt.model.types.ConnectionType
 import com.egorgoncharov.mastermqtt.ui.components.AudioPicker
 import com.egorgoncharov.mastermqtt.ui.components.Empty
 import com.egorgoncharov.mastermqtt.ui.components.EntityManagingFormState
+import com.egorgoncharov.mastermqtt.ui.components.Error
 import com.egorgoncharov.mastermqtt.ui.components.FormFieldState
 import com.egorgoncharov.mastermqtt.ui.components.FormIsland
 import com.egorgoncharov.mastermqtt.ui.components.ItemAction
@@ -78,27 +80,27 @@ import com.egorgoncharov.mastermqtt.ui.components.SettingsTopBar
 import com.egorgoncharov.mastermqtt.ui.components.jsonPathRegex
 import com.egorgoncharov.mastermqtt.ui.components.nameRegex
 import com.egorgoncharov.mastermqtt.ui.components.update
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-class TopicViewModel(private val brokerDao: BrokerDao, private val topicDao: TopicDao) :
+class TopicViewModel(
+    private val brokerDao: BrokerDao,
+    private val topicDao: TopicDao,
+    private val messageDao: MessageDao
+) :
     ViewModel() {
     companion object {
-        fun Factory(brokerDao: BrokerDao, topicDao: TopicDao): ViewModelProvider.Factory =
+        fun Factory(brokerDao: BrokerDao, topicDao: TopicDao, messageDao: MessageDao): ViewModelProvider.Factory =
             viewModelFactory {
-                initializer { TopicViewModel(brokerDao, topicDao) }
+                initializer { TopicViewModel(brokerDao, topicDao, messageDao) }
             }
     }
 
     private val _manageTopicState = MutableStateFlow(ManageTopicState())
 
-    val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     val topics = topicDao.streamTopics()
     val brokers = brokerDao.streamBrokers()
     val manageTopicState = _manageTopicState.asStateFlow()
@@ -119,11 +121,14 @@ class TopicViewModel(private val brokerDao: BrokerDao, private val topicDao: Top
         }
     }
 
-    private fun handleBrokerChange(broker: BrokerEntity) = _manageTopicState.update(
-        { it.broker },
-        broker,
-        { if (broker.id.isNotBlank()) null else "Broker is required" }
-    ) { copy(broker = it) }
+    private fun handleBrokerChange(broker: BrokerEntity) {
+        _manageTopicState.update(
+            { it.broker },
+            broker,
+            { if (broker.id.isNotBlank()) null else "Broker is required" }
+        ) { copy(broker = it) }
+        checkExists()
+    }
 
     private fun handleNameChange(name: String) = _manageTopicState.update(
         { it.name },
@@ -131,11 +136,14 @@ class TopicViewModel(private val brokerDao: BrokerDao, private val topicDao: Top
         { if (name.matches(nameRegex)) null else "Invalid name format" }
     ) { copy(name = it) }
 
-    private fun handleTopicChange(topic: String) = _manageTopicState.update(
-        { it.topic },
-        topic,
-        { null /* TODO: Should probably add an MQTT topic check regex */ }
-    ) { copy(topic = it) }
+    private fun handleTopicChange(topic: String) {
+        _manageTopicState.update(
+            { it.topic },
+            topic,
+            { null /* TODO: Should probably add an MQTT topic check regex */ }
+        ) { copy(topic = it) }
+        checkExists()
+    }
 
     private fun handlePayloadSettingsChange(
         showPayload: Boolean,
@@ -188,7 +196,7 @@ class TopicViewModel(private val brokerDao: BrokerDao, private val topicDao: Top
     private fun saveTopic() {
         if (!manageTopicState.value.valid()) return
         val state = manageTopicState.value
-        scope.launch {
+        viewModelScope.launch {
             topicDao.save(
                 TopicEntity(
                     id = state.reference?.id ?: UUID.randomUUID().toString(),
@@ -221,7 +229,7 @@ class TopicViewModel(private val brokerDao: BrokerDao, private val topicDao: Top
         }
         updateManageFormErrors()
         if (reference != null) {
-            scope.launch {
+            viewModelScope.launch {
                 handleBrokerChange(
                     brokerDao.findById(reference.brokerId) ?: return@launch
                 )
@@ -248,11 +256,20 @@ class TopicViewModel(private val brokerDao: BrokerDao, private val topicDao: Top
     }
 
     private fun toggleTopic(topic: TopicEntity) {
-        scope.launch { topicDao.save(topic.copy(enabled = !topic.enabled)) }
+        viewModelScope.launch { topicDao.save(topic.copy(enabled = !topic.enabled)) }
     }
 
     private fun deleteTopic(topic: TopicEntity) {
-        scope.launch { topicDao.delete(topic) }
+        viewModelScope.launch {
+            topicDao.delete(topic)
+            messageDao.deleteByTopic(topic.id)
+        }
+    }
+
+    private fun checkExists() {
+        viewModelScope.launch {
+            _manageTopicState.update { it.copy(exists = topicDao.existsByTopic(manageTopicState.value.broker.value.id, manageTopicState.value.topic.value)) }
+        }
     }
 }
 
@@ -279,6 +296,7 @@ sealed interface TopicEvent {
 data class ManageTopicState(
     override val visible: Boolean = false,
     override val reference: TopicEntity? = null,
+    val exists: Boolean = false,
     val broker: FormFieldState<BrokerEntity> = FormFieldState(
         BrokerEntity(
             id = reference?.brokerId ?: "",
@@ -333,9 +351,6 @@ fun TopicsScreen(vm: TopicViewModel, navController: NavHostController) {
     }
     Column(Modifier.fillMaxWidth()) {
         SettingsTopBar(navController, "Topics Management") {
-            button(onClick = { /* TODO: Import/Export */ }) {
-                Icon(modifier = Modifier.size(24.dp), imageVector = Icons.Default.ImportExport, contentDescription = null)
-            }
             button(onClick = { vm.onEvent(TopicEvent.ToggleManageForm(null)) }) {
                 Icon(modifier = Modifier.size(24.dp), imageVector = Icons.Default.AddCircle, contentDescription = null)
             }
@@ -608,6 +623,11 @@ fun TopicManage(state: ManageTopicState, brokers: List<BrokerEntity>, onEvent: (
                 }
             }
         }
+        if (state.exists && state.reference == null) {
+            Column(Modifier.padding(horizontal = 16.dp)) {
+                Error("This topic already exists")
+            }
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -622,7 +642,7 @@ fun TopicManage(state: ManageTopicState, brokers: List<BrokerEntity>, onEvent: (
             }
             Button(
                 modifier = Modifier.weight(1f),
-                enabled = state.valid(),
+                enabled = state.valid() && (state.reference != null || !state.exists),
                 onClick = { onEvent(TopicEvent.TopicSaved) }
             ) {
                 Text("Save")

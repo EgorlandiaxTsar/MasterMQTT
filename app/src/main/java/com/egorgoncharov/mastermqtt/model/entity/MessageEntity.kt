@@ -4,7 +4,7 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "notifications")
+@Entity(tableName = "messages")
 data class MessageEntity(
     @PrimaryKey val id: String,
     @ColumnInfo("topicId") val topicId: String,

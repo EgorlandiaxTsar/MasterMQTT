@@ -1,6 +1,8 @@
 package com.egorgoncharov.mastermqtt.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,13 +12,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Air
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -30,38 +28,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.egorgoncharov.mastermqtt.ui.ToolbarButton
-
-@Composable
-fun Toolbar(actions: List<ToolbarButton>) {
-    LazyRow(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-        items(actions) { action ->
-            val backgroundColor = if (action.primary) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
-            val color = if (action.primary) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-            if (action.text == null && action.icon == null) {
-                return@items
-            } else if (action.text != null) {
-                Button(
-                    colors = ButtonDefaults.buttonColors(containerColor = backgroundColor),
-                    onClick = { action.onClick() }
-                ) {
-                    if (action.icon != null) {
-                        Icon(modifier = Modifier.size(20.dp), imageVector = action.icon, contentDescription = null, tint = color)
-                        Spacer(Modifier.width(5.dp))
-                    }
-                    Text(action.text, style = MaterialTheme.typography.labelMedium, color = color)
-                }
-            } else {
-                IconButton(
-                    colors = IconButtonDefaults.iconButtonColors(containerColor = backgroundColor, contentColor = color),
-                    onClick = { action.onClick() }
-                ) {
-                    Icon(modifier = Modifier.size(20.dp), imageVector = action.icon!!, contentDescription = null, tint = color)
-                }
-            }
-        }
-    }
-}
 
 @Composable
 fun ItemProperty(name: String? = null, value: String, icon: ImageVector, content: (@Composable () -> Unit)? = null) {
@@ -138,5 +104,22 @@ fun Empty(message: String = "Nothing found") {
     }
 }
 
-
-
+@Composable
+fun Error(message: String = "Error occurred") {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 36.dp)
+            .background(color = MaterialTheme.colorScheme.errorContainer, shape = RoundedCornerShape(100)),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(message, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onErrorContainer)
+        }
+    }
+}

@@ -4,7 +4,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.room.TypeConverter
 import com.egorgoncharov.mastermqtt.Utils
-import com.egorgoncharov.mastermqtt.dto.db.ConnectionType
+import com.egorgoncharov.mastermqtt.model.types.ConnectionType
 import kotlinx.serialization.json.Json
 
 class Converters {

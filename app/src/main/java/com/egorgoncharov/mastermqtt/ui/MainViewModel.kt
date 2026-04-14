@@ -4,14 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.egorgoncharov.mastermqtt.manager.mqtt.MQTTManager
+import com.egorgoncharov.mastermqtt.manager.mqtt.MqttManager
 
 open class MainViewModel(
-    val mqttManager: MQTTManager
+    val mqttManager: MqttManager
 ) : ViewModel() {
     companion object {
         fun Factory(
-            mqttManager: MQTTManager
+            mqttManager: MqttManager
         ): ViewModelProvider.Factory =
             viewModelFactory {
                 initializer {

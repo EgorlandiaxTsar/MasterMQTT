@@ -3,9 +3,6 @@ package com.egorgoncharov.mastermqtt.manager.mqtt
 import android.annotation.SuppressLint
 import android.content.Context
 import android.util.Log
-import com.egorgoncharov.mastermqtt.dto.MQTTConnection
-import com.egorgoncharov.mastermqtt.dto.db.ConnectionType
-import com.egorgoncharov.mastermqtt.dto.db.MQTTConnectionState
 import com.egorgoncharov.mastermqtt.manager.NotificationManager
 import com.egorgoncharov.mastermqtt.manager.SoundManager
 import com.egorgoncharov.mastermqtt.model.dao.BrokerDao
@@ -14,6 +11,8 @@ import com.egorgoncharov.mastermqtt.model.dao.TopicDao
 import com.egorgoncharov.mastermqtt.model.entity.BrokerEntity
 import com.egorgoncharov.mastermqtt.model.entity.MessageEntity
 import com.egorgoncharov.mastermqtt.model.entity.TopicEntity
+import com.egorgoncharov.mastermqtt.model.types.ConnectionType
+import com.egorgoncharov.mastermqtt.model.types.MQTTConnectionState
 import com.hivemq.client.mqtt.datatypes.MqttQos
 import com.hivemq.client.mqtt.lifecycle.MqttDisconnectSource
 import com.hivemq.client.mqtt.mqtt5.Mqtt5AsyncClient
@@ -36,7 +35,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
-open class MQTTManager(
+open class MqttManager(
     protected val context: Context,
     protected val brokerDao: BrokerDao,
     protected val topicDao: TopicDao,
@@ -46,9 +45,9 @@ open class MQTTManager(
 ) {
     protected val json = Json { encodeDefaults = true; ignoreUnknownKeys = true }
     protected val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    protected val clients = MutableStateFlow(mutableMapOf<String, MQTTConnection>())
+    protected val clients = MutableStateFlow(mutableMapOf<String, MqttConnection>())
     protected val subscriptionsSyncJobs = mutableMapOf<String, Job>()
-    protected val messageChannel = Channel<MQTTMessageTask>(1000)
+    protected val messageChannel = Channel<MqttMessageTask>(1000)
     protected var brokersSyncJob: Job? = null
 
     val clientsFlow = clients.asStateFlow()
@@ -71,7 +70,7 @@ open class MQTTManager(
         val client = buildConnection(broker)
         val registerFn = {
             clients.update { current ->
-                (current + (broker.id to MQTTConnection(
+                (current + (broker.id to MqttConnection(
                     broker,
                     client,
                     MQTTConnectionState.DISCONNECTED
@@ -176,7 +175,7 @@ open class MQTTManager(
             .buildAsync()
     }
 
-    protected fun syncSubscriptions(connection: MQTTConnection): Job {
+    protected fun syncSubscriptions(connection: MqttConnection): Job {
         val sync = { topics: List<TopicEntity> ->
             val currentIds = topics.map { it.id }.toSet()
             val toRemove = connection.subscriptions.filter { it.id !in currentIds }
@@ -208,7 +207,7 @@ open class MQTTManager(
         }
     }
 
-    private fun subscribeToTopic(connection: MQTTConnection, topic: TopicEntity) {
+    private fun subscribeToTopic(connection: MqttConnection, topic: TopicEntity) {
         connection.client.subscribeWith()
             .topicFilter(topic.topic)
             .qos(MqttQos.EXACTLY_ONCE)
@@ -247,7 +246,7 @@ open class MQTTManager(
         id: String,
         publish: Mqtt5Publish
     ) {
-        val result = messageChannel.trySend(MQTTMessageTask(broker, id, publish))
+        val result = messageChannel.trySend(MqttMessageTask(broker, id, publish))
         if (result.isFailure) Log.e("MQTTManager", "Failed to process incoming message")
     }
 
@@ -308,7 +307,7 @@ open class MQTTManager(
         return extractedValues.ifEmpty { mapOf("" to payloadStr) }
     }
 
-    protected fun updateClient(id: String, transform: (MQTTConnection) -> MQTTConnection) {
+    protected fun updateClient(id: String, transform: (MqttConnection) -> MqttConnection) {
         clients.update { current ->
             val connection = current[id] ?: return@update current
             (current + (id to transform(connection))).toMutableMap()
