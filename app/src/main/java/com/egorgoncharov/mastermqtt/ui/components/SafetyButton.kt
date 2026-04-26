@@ -39,7 +39,7 @@ fun SafetyButton(
                                 tryAwaitRelease()
                                 false
                             }
-                        } catch (e: TimeoutCancellationException) {
+                        } catch (_: TimeoutCancellationException) {
                             true
                         }
                         if (completed) {

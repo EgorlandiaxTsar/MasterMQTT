@@ -1,4 +1,4 @@
-package com.egorgoncharov.mastermqtt.screen
+package com.egorgoncharov.mastermqtt.screen.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column

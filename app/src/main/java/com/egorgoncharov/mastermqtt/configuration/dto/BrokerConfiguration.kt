@@ -7,12 +7,15 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class BrokerConfiguration(
     @SerialName("name") val name: String,
-    @SerialName("clientId") val clientId: String,
     @SerialName("url") val url: String, // ConnectionType + Host + Port
-    @SerialName("authentication") val authentication: String?,
-    @SerialName("connected") val connected: Boolean,
+    @SerialName("authentication") val authentication: String?, // User + Password
+    @SerialName("clientId") val clientId: String,
     @SerialName("keepAliveInterval") val keepAliveInterval: Int,
-    @SerialName("reconnectAttempts") val reconnectAttempts: Int,
+    @SerialName("cleanStart") val cleanStart: Boolean,
+    @SerialName("reconnectAttempts") val reconnectAttempts: Int?,
+    @SerialName("reconnectInterval") val reconnectInterval: Int,
+    @SerialName("sessionExpiryInterval") val sessionExpiryInterval: Int?,
+    @SerialName("connected") val connected: Boolean,
     @SerialName("topics") val topics: MutableList<TopicConfiguration>
 ) {
     fun address(): String = url.substringAfter("://")
@@ -23,7 +26,7 @@ data class BrokerConfiguration(
 
     fun connectionType(): ConnectionType = if (url.startsWith("ssl://")) ConnectionType.SSL else ConnectionType.TCP
 
-    fun authenticationUser(): String? = authentication?.substringBefore("<mastermqtt_splitpoint>")
+    fun authenticationUser(): String? = authentication?.substringBefore("${Char(0x1F)}")
 
-    fun authenticationPassword(): String? = authentication?.substringAfter("<mastermqtt_splitpoint>")
+    fun authenticationPassword(): String? = authentication?.substringAfter("${Char(0x1F)}")
 }

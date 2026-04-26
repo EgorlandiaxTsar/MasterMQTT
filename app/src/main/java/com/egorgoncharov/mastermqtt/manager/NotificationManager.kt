@@ -19,6 +19,7 @@ open class NotificationManager(protected val context: Context) {
     private val notificationManager = context.getSystemService(NotificationManager::class.java)
 
     private val channelMap = mapOf(
+        "max" to "MasterMQTTAlertMax",
         "high" to "MasterMQTTAlertHigh",
         "low" to "MasterMQTTAlertLow"
     )
@@ -36,6 +37,15 @@ open class NotificationManager(protected val context: Context) {
     }
 
     private fun initializeChannels() {
+        val maxChannel = NotificationChannel(
+            channelMap["max"],
+            "Max Priority Alerts",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            setSound(null, null)
+            enableVibration(false)
+            setBypassDnd(true)
+        }
         val highChannel = NotificationChannel(
             channelMap["high"],
             "High Priority Alerts",
@@ -52,12 +62,12 @@ open class NotificationManager(protected val context: Context) {
             setSound(null, null)
             enableVibration(false)
         }
-        notificationManager.createNotificationChannels(listOf(highChannel, lowChannel))
+        notificationManager.createNotificationChannels(listOf(maxChannel, highChannel, lowChannel))
     }
 
     fun show(broker: BrokerEntity, topic: TopicEntity, description: String) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
-        val targetChannelId = if (topic.highPriority) channelMap["high"] else channelMap["low"]
+        val targetChannelId = if (topic.ignoreBedTime) channelMap["max"] else if (topic.highPriority) channelMap["high"] else channelMap["low"]
         val notificationId = System.currentTimeMillis().toInt()
         val intent = Intent(Intent.ACTION_VIEW, "mastermqtt://stream?topicId=${topic.id}".toUri()).apply { `package` = context.packageName }
         val pendingIntent = TaskStackBuilder.create(context).run {

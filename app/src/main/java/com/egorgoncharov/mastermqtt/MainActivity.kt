@@ -40,20 +40,22 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navDeepLink
 import com.egorgoncharov.mastermqtt.configuration.ConfigurationEntityConverter
 import com.egorgoncharov.mastermqtt.manager.ConfigurationManager
+import com.egorgoncharov.mastermqtt.manager.SoundManager
 import com.egorgoncharov.mastermqtt.manager.mqtt.MqttManager
 import com.egorgoncharov.mastermqtt.model.dao.BrokerDao
 import com.egorgoncharov.mastermqtt.model.dao.MessageDao
+import com.egorgoncharov.mastermqtt.model.dao.SettingsProfileDao
 import com.egorgoncharov.mastermqtt.model.dao.TopicDao
-import com.egorgoncharov.mastermqtt.screen.BrokerViewModel
-import com.egorgoncharov.mastermqtt.screen.BrokersScreen
-import com.egorgoncharov.mastermqtt.screen.GeneralSettingsScreen
-import com.egorgoncharov.mastermqtt.screen.GeneralSettingsViewModel
-import com.egorgoncharov.mastermqtt.screen.SettingsScreen
-import com.egorgoncharov.mastermqtt.screen.StreamEvent
-import com.egorgoncharov.mastermqtt.screen.StreamScreen
-import com.egorgoncharov.mastermqtt.screen.StreamViewModel
-import com.egorgoncharov.mastermqtt.screen.TopicViewModel
-import com.egorgoncharov.mastermqtt.screen.TopicsScreen
+import com.egorgoncharov.mastermqtt.screen.settings.SettingsScreen
+import com.egorgoncharov.mastermqtt.screen.settings.brokers.BrokersScreen
+import com.egorgoncharov.mastermqtt.screen.settings.brokers.BrokersScreenViewModel
+import com.egorgoncharov.mastermqtt.screen.settings.general.GeneralSettingsScreen
+import com.egorgoncharov.mastermqtt.screen.settings.general.GeneralSettingsScreenViewModel
+import com.egorgoncharov.mastermqtt.screen.settings.topics.TopicsScreen
+import com.egorgoncharov.mastermqtt.screen.settings.topics.TopicsScreenViewModel
+import com.egorgoncharov.mastermqtt.screen.stream.StreamScreen
+import com.egorgoncharov.mastermqtt.screen.stream.StreamScreenEvent
+import com.egorgoncharov.mastermqtt.screen.stream.StreamScreenViewModel
 import com.egorgoncharov.mastermqtt.service.MqttService
 import com.egorgoncharov.mastermqtt.ui.theme.AppTheme
 
@@ -85,8 +87,10 @@ class MainActivity : ComponentActivity() {
             val brokerDao = dbManager.db!!.brokerDao()
             val topicDao = dbManager.db!!.topicDao()
             val messageDao = dbManager.db!!.messageDao()
+            val settingsProfileDao = dbManager.db!!.settingsProfilesDao()
             val configurationEntityConverter = ConfigurationEntityConverter(brokerDao, topicDao)
             val configurationManager = ConfigurationManager(applicationContext, brokerDao, topicDao, messageDao, configurationEntityConverter)
+            LaunchedEffect(Unit) { settingsProfileDao.createMainSettingsProfileIfNotExists() }
             AppTheme {
                 val navController = rememberNavController()
                 var showSettingsList by remember { mutableStateOf(false) }
@@ -98,7 +102,9 @@ class MainActivity : ComponentActivity() {
                             brokerDao = brokerDao,
                             topicDao = topicDao,
                             messageDao = messageDao,
+                            settingsProfileDao = settingsProfileDao,
                             mqttManager = mqttManager,
+                            soundManager = SoundManager(applicationContext),
                             configurationManager = configurationManager,
                             configurationEntityConverter = configurationEntityConverter
                         )
@@ -146,7 +152,9 @@ private fun AppNavHost(
     brokerDao: BrokerDao,
     topicDao: TopicDao,
     messageDao: MessageDao,
+    settingsProfileDao: SettingsProfileDao,
     mqttManager: MqttManager,
+    soundManager: SoundManager,
     configurationManager: ConfigurationManager,
     configurationEntityConverter: ConfigurationEntityConverter
 ) {
@@ -161,7 +169,7 @@ private fun AppNavHost(
                 Column(Modifier.fillMaxSize()) {
                     BrokersScreen(
                         vm = viewModel(
-                            factory = BrokerViewModel.Factory(brokerDao, topicDao, messageDao, mqttManager)
+                            factory = BrokersScreenViewModel.Factory(brokerDao, topicDao, messageDao, mqttManager)
                         ), navController
                     )
                 }
@@ -173,7 +181,7 @@ private fun AppNavHost(
                 Column(Modifier.fillMaxSize()) {
                     TopicsScreen(
                         vm = viewModel(
-                            factory = TopicViewModel.Factory(brokerDao, topicDao, messageDao)
+                            factory = TopicsScreenViewModel.Factory(brokerDao, topicDao, messageDao, soundManager)
                         ),
                         navController
                     )
@@ -186,7 +194,7 @@ private fun AppNavHost(
                 Column(Modifier.fillMaxSize()) {
                     GeneralSettingsScreen(
                         vm = viewModel(
-                            factory = GeneralSettingsViewModel.Factory(brokerDao, topicDao, configurationManager, configurationEntityConverter)
+                            factory = GeneralSettingsScreenViewModel.Factory(brokerDao, topicDao, settingsProfileDao, configurationManager, configurationEntityConverter)
                         ),
                         navController = navController
                     )
@@ -198,16 +206,16 @@ private fun AppNavHost(
             Scaffold(Modifier.padding(20.dp)) {
                 Column(Modifier.fillMaxSize()) {
                     val topicId = backStackEntry.arguments?.getString("topicId")
-                    val vm = viewModel<StreamViewModel>(factory = StreamViewModel.Factory(brokerDao, topicDao, messageDao, mqttManager))
+                    val vm = viewModel<StreamScreenViewModel>(factory = StreamScreenViewModel.Factory(brokerDao, topicDao, messageDao, mqttManager))
                     if (topicId != null) {
                         LaunchedEffect(Unit) {
                             if (!vm.isDeepLinkBound()) {
                                 val topic = topicDao.findById(topicId) ?: return@LaunchedEffect
-                                vm.onEvent(StreamEvent.SelectedStreamChanged(topic))
-                                vm.onEvent(StreamEvent.DeepLinkBoundChanged(true))
+                                vm.onEvent(StreamScreenEvent.SelectedStreamChanged(topic))
+                                vm.onEvent(StreamScreenEvent.DeepLinkBoundChanged(true))
                             }
                         }
-                    } else vm.onEvent(StreamEvent.DeepLinkBoundChanged(false))
+                    } else vm.onEvent(StreamScreenEvent.DeepLinkBoundChanged(false))
                     StreamScreen(vm = vm, navController = navController)
                 }
             }

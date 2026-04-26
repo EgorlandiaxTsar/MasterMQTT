@@ -107,10 +107,10 @@ open class MqttManager(
         clients.value[broker.id]!!.client.connectWith()
             .keepAlive(1.coerceAtLeast(broker.keepAliveInterval))
             .restrictions()
-            .receiveMaximum(100)
+            .receiveMaximum(Short.MAX_VALUE - 1)
             .applyRestrictions()
-            .sessionExpiryInterval(86400) // 1 day
-            .cleanStart(false)
+            .sessionExpiryInterval(0.coerceAtLeast(broker.sessionExpiryInterval ?: 0).toLong())
+            .cleanStart(broker.cleanStart)
             .send()
             .handle { _, throwable ->
                 updateClient(broker.id) { it.copy(state = if (throwable == null) MQTTConnectionState.CONNECTED else MQTTConnectionState.DISCONNECTED_FAILED) }
@@ -133,15 +133,15 @@ open class MqttManager(
         var retryCount = 0
         return Mqtt5Client.builder()
             .identifier(broker.clientId)
-            .serverHost(broker.ip)
+            .serverHost(broker.host)
             .serverPort(broker.port)
             .transportConfig()
             .socketConnectTimeout(3, TimeUnit.SECONDS)
             .mqttConnectTimeout(3, TimeUnit.SECONDS)
             .applyTransportConfig()
             .automaticReconnect()
-            .initialDelay(3, TimeUnit.SECONDS)
-            .maxDelay(3, TimeUnit.SECONDS)
+            .initialDelay(1.coerceAtLeast(broker.reconnectInterval).toLong(), TimeUnit.SECONDS)
+            .maxDelay(1.coerceAtLeast(broker.reconnectInterval).toLong(), TimeUnit.SECONDS)
             .applyAutomaticReconnect()
             .addDisconnectedListener { context ->
                 when (context.source) {
@@ -152,7 +152,7 @@ open class MqttManager(
 
                     else -> {
                         retryCount++
-                        if (retryCount <= (broker.reconnectAttempts ?: 0)) {
+                        if (broker.reconnectAttempts == null || retryCount <= broker.reconnectAttempts) {
                             context.reconnector.reconnect(true)
                         } else {
                             updateClient(broker.id) { it.copy(state = MQTTConnectionState.DISCONNECTED_FAILED) }
@@ -165,10 +165,10 @@ open class MqttManager(
             .addConnectedListener { _ -> retryCount = 0 }
             .apply {
                 if (broker.connectionType == ConnectionType.SSL) sslWithDefaultConfig()
-                if (!broker.user.isNullOrBlank()) {
+                if (!broker.authUser.isNullOrBlank()) {
                     simpleAuth()
-                        .username(broker.user)
-                        .password(broker.password?.toByteArray() ?: arrayOf<Byte>().toByteArray())
+                        .username(broker.authUser)
+                        .password(broker.authPassword?.toByteArray() ?: arrayOf<Byte>().toByteArray())
                         .applySimpleAuth()
                 }
             }
@@ -210,7 +210,7 @@ open class MqttManager(
     private fun subscribeToTopic(connection: MqttConnection, topic: TopicEntity) {
         connection.client.subscribeWith()
             .topicFilter(topic.topic)
-            .qos(MqttQos.EXACTLY_ONCE)
+            .qos(MqttQos.fromCode(topic.qos) ?: MqttQos.EXACTLY_ONCE)
             .callback { publish -> handleIncomingMessage(connection.broker, topic.id, publish) }
             .send()
     }

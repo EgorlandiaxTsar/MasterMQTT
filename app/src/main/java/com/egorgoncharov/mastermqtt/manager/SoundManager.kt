@@ -33,8 +33,8 @@ open class SoundManager(protected val context: Context) {
     }
 
     suspend fun alert(topic: TopicEntity) {
-        if (!topic.notificationSoundPath.isNullOrBlank()) {
-            playSound(topic.notificationSoundPath)
+        if (!topic.notificationSoundPath.isNullOrBlank() && topic.notificationSoundLevel != null) {
+            playSound(topic.notificationSoundPath, topic.notificationSoundLevel, topic.ignoreBedTime)
         }
 //        if (!topic.notificationSoundText.isNullOrBlank()) {
 //            speak(topic.notificationSoundText)
@@ -45,6 +45,26 @@ open class SoundManager(protected val context: Context) {
         tts?.shutdown()
         tts = null
         isTtsReady = false
+    }
+
+    open fun playSound(path: String, volume: Double = 1.0, bypassDnd: Boolean = false) {
+        try {
+            MediaPlayer().apply {
+                setDataSource(context, path.toUri())
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(if (bypassDnd) AudioAttributes.USAGE_ALARM else AudioAttributes.USAGE_NOTIFICATION)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
+                setVolume(volume.toFloat(), volume.toFloat())
+                prepare()
+                start()
+                setOnCompletionListener { release() }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -84,25 +104,6 @@ open class SoundManager(protected val context: Context) {
                 initTts()
                 cont.resume(Unit)
             }
-        }
-    }
-
-    protected open fun playSound(path: String) {
-        try {
-            MediaPlayer().apply {
-                setDataSource(context, path.toUri())
-                setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build()
-                )
-                prepare()
-                start()
-                setOnCompletionListener { release() }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
     }
 }

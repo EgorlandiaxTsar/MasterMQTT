@@ -1,6 +1,5 @@
 package com.egorgoncharov.mastermqtt.configuration
 
-import androidx.compose.ui.graphics.Color
 import com.egorgoncharov.mastermqtt.configuration.dto.BrokerConfiguration
 import com.egorgoncharov.mastermqtt.configuration.dto.TopicConfiguration
 import com.egorgoncharov.mastermqtt.model.dao.BrokerDao
@@ -13,12 +12,15 @@ class ConfigurationEntityConverter(private val brokerDao: BrokerDao, private val
     suspend fun brokerFromEntityToConfiguration(broker: BrokerEntity): BrokerConfiguration {
         return BrokerConfiguration(
             name = broker.name,
-            clientId = broker.clientId,
             url = broker.address(true),
-            authentication = if (broker.user == null) null else "${broker.user}<mastermqtt_splitpoint>${broker.password}",
-            connected = broker.connected,
+            authentication = if (broker.authUser == null) null else "${broker.authUser}${Char(0x1F)}${broker.authPassword}",
+            clientId = broker.clientId,
             keepAliveInterval = broker.keepAliveInterval,
-            reconnectAttempts = broker.reconnectAttempts ?: 0,
+            cleanStart = broker.cleanStart,
+            reconnectAttempts = broker.reconnectAttempts,
+            reconnectInterval = broker.reconnectInterval,
+            sessionExpiryInterval = broker.sessionExpiryInterval,
+            connected = broker.connected,
             topics = topicDao.findByBroker(broker.id).map { topicFromEntityToConfiguration(it, broker) }.toMutableList()
         )
     }
@@ -27,31 +29,36 @@ class ConfigurationEntityConverter(private val brokerDao: BrokerDao, private val
         return BrokerEntity(
             id = id,
             name = brokerConfiguration.name,
-            clientId = brokerConfiguration.clientId,
-            connected = brokerConfiguration.connected,
-            ip = brokerConfiguration.host(),
+            host = brokerConfiguration.host(),
             port = brokerConfiguration.port(),
-            user = brokerConfiguration.authenticationUser(),
-            password = brokerConfiguration.authenticationPassword(),
+            authUser = brokerConfiguration.authenticationUser(),
+            authPassword = brokerConfiguration.authenticationPassword(),
             connectionType = brokerConfiguration.connectionType(),
+            clientId = brokerConfiguration.clientId,
             keepAliveInterval = brokerConfiguration.keepAliveInterval,
+            cleanStart = brokerConfiguration.cleanStart,
             reconnectAttempts = brokerConfiguration.reconnectAttempts,
-            displayIndex = 0,
-            removed = false
+            reconnectInterval = brokerConfiguration.reconnectInterval,
+            sessionExpiryInterval = brokerConfiguration.sessionExpiryInterval,
+            connected = brokerConfiguration.connected,
+            displayIndex = 0
         )
     }
 
     fun topicFromEntityToConfiguration(topic: TopicEntity, broker: BrokerEntity): TopicConfiguration {
         if (topic.brokerId != broker.id) throw IllegalArgumentException("Topic's broker ID and passed broker ID must be equal. Received ${topic.brokerId} as topic's broker ID and ${broker.id} as broker's id")
         return TopicConfiguration(
-            name = topic.name,
             brokerAddress = broker.address(true),
+            name = topic.name,
             topic = topic.topic,
+            qos = topic.qos,
             enabled = topic.enabled,
-            notificationDisplaySettings = topic.payloadContent,
-            notificationSoundPath = topic.notificationSoundPath,
+            payloadContent = topic.payloadContent,
+            highPriority = topic.highPriority,
+            ignoreBedTime = topic.ignoreBedTime,
             notificationSoundText = topic.notificationSoundText,
-            highPriority = topic.highPriority
+            notificationSoundPath = topic.notificationSoundPath,
+            notificationSoundLevel = topic.notificationSoundLevel
         )
     }
 
@@ -66,16 +73,16 @@ class ConfigurationEntityConverter(private val brokerDao: BrokerDao, private val
             brokerId = brokerId,
             name = topicConfiguration.name,
             topic = topicConfiguration.topic,
+            qos = topicConfiguration.qos,
             enabled = topicConfiguration.enabled,
-            payloadContent = topicConfiguration.notificationDisplaySettings,
-            notificationColor = Color.White,
-            notificationIcon = "",
-            notificationSoundPath = topicConfiguration.notificationSoundPath,
-            notificationSoundText = topicConfiguration.notificationSoundText,
+            payloadContent = topicConfiguration.payloadContent,
             highPriority = topicConfiguration.highPriority,
+            ignoreBedTime = topicConfiguration.ignoreBedTime,
+            notificationSoundText = topicConfiguration.notificationSoundText,
+            notificationSoundPath = topicConfiguration.notificationSoundPath,
+            notificationSoundLevel = topicConfiguration.notificationSoundLevel,
             displayIndex = 0,
-            lastOpened = System.currentTimeMillis(),
-            removed = false
+            lastOpened = System.currentTimeMillis()
         )
     }
 }

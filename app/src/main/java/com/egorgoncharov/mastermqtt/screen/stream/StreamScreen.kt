@@ -1,4 +1,4 @@
-package com.egorgoncharov.mastermqtt.screen
+package com.egorgoncharov.mastermqtt.screen.stream
 
 import android.annotation.SuppressLint
 import androidx.compose.foundation.background
@@ -30,7 +30,6 @@ import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.WifiTethering
 import androidx.compose.material.icons.filled.WifiTetheringError
 import androidx.compose.material.icons.filled.WifiTetheringOff
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -43,7 +42,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -61,191 +59,39 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavHostController
 import com.egorgoncharov.mastermqtt.Utils
 import com.egorgoncharov.mastermqtt.manager.mqtt.MqttConnection
-import com.egorgoncharov.mastermqtt.manager.mqtt.MqttManager
-import com.egorgoncharov.mastermqtt.model.dao.BrokerDao
-import com.egorgoncharov.mastermqtt.model.dao.MessageDao
-import com.egorgoncharov.mastermqtt.model.dao.TopicDao
 import com.egorgoncharov.mastermqtt.model.entity.MessageEntity
 import com.egorgoncharov.mastermqtt.model.entity.TopicEntity
 import com.egorgoncharov.mastermqtt.model.types.ConnectionType
 import com.egorgoncharov.mastermqtt.model.types.MQTTConnectionState
+import com.egorgoncharov.mastermqtt.screen.settings.SettingsScreen
+import com.egorgoncharov.mastermqtt.ui.components.DialogWindow
 import com.egorgoncharov.mastermqtt.ui.components.Empty
-import com.egorgoncharov.mastermqtt.ui.components.FormFieldState
-import com.egorgoncharov.mastermqtt.ui.components.FormState
 import com.egorgoncharov.mastermqtt.ui.components.SafetyButton
 import com.egorgoncharov.mastermqtt.ui.components.StreamDateTimeFilter
-import com.egorgoncharov.mastermqtt.ui.components.update
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
 
-class StreamViewModel(
-    brokerDao: BrokerDao,
-    private val topicDao: TopicDao,
-    private val messageDao: MessageDao,
-    mqttManager: MqttManager
-) : ViewModel() {
-    companion object {
-        fun Factory(
-            brokerDao: BrokerDao,
-            topicDao: TopicDao,
-            messageDao: MessageDao,
-            mqttManager: MqttManager
-        ): ViewModelProvider.Factory =
-            viewModelFactory {
-                initializer { StreamViewModel(brokerDao, topicDao, messageDao, mqttManager) }
-            }
-    }
-
-    private val _streamFilterState = MutableStateFlow(StreamFilterState())
-    private val _streamClearState = MutableStateFlow(StreamClearState())
-    private val _streamChatState = MutableStateFlow(StreamChatState())
-    private var readTrackingJob: Job? = null
-    private var deepLinkBound = false
-
-    val brokers = brokerDao.streamBrokers()
-    val topics = topicDao.streamTopics()
-    val messages = messageDao.streamMessages()
-    val streamFilterState = _streamFilterState.asStateFlow()
-    val streamClearState = _streamClearState.asStateFlow()
-    val streamChatState = _streamChatState.asStateFlow()
-    val connections = mqttManager.clientsFlow
-
-    fun onEvent(event: StreamEvent) {
-        when (event) {
-            is StreamEvent.MinDatetimeFilterChanged -> handleMinDatetimeFilterChange(event.min)
-            is StreamEvent.MaxDatetimeFilterChanged -> handleMaxDatetimeFilterChange(event.max)
-            is StreamEvent.TextSearchFilterChanged -> handleTextSearchFilterChange(event.query)
-            is StreamEvent.SelectedStreamChanged -> selectStream(event.streamSource)
-            is StreamEvent.ToggleStreamDisplayOriginalMessageOption -> toggleStreamDisplayOriginalMessageOption()
-            is StreamEvent.ToggleStreamClearDialog -> toggleStreamClearDialog()
-            is StreamEvent.StreamCleared -> clearStream()
-            is StreamEvent.DeepLinkBoundChanged -> handleDeepLinkBoundChange(event.deepLinkBound)
-        }
-    }
-
-    fun isDeepLinkBound() = deepLinkBound
-
-    private fun handleMinDatetimeFilterChange(min: Long?) = _streamFilterState.update(
-        { it.minDatetime },
-        min,
-        { null }
-    ) { copy(minDatetime = it) }
-
-    private fun handleMaxDatetimeFilterChange(max: Long?) = _streamFilterState.update(
-        { it.maxDatetime },
-        max,
-        { null }
-    ) { copy(maxDatetime = it) }
-
-    private fun handleTextSearchFilterChange(query: String?) = _streamFilterState.update(
-        { it.query },
-        query,
-        { null }
-    ) { copy(query = it) }
-
-    private fun selectStream(streamSource: TopicEntity?) {
-        _streamChatState.update { it.copy(selected = streamSource) }
-        readTrackingJob?.cancel()
-        if (streamSource != null) {
-            readTrackingJob = viewModelScope.launch {
-                messages.collect { allMessages ->
-                    val latestMessage = allMessages
-                        .filter { it.topicId == streamSource.id }
-                        .maxByOrNull { it.date }
-                    latestMessage?.let {
-                        delay(1000)
-                        streamChatState.value.selected?.let { source ->
-                            topicDao.save(source.copy(lastOpened = it.date + 1))
-                        }
-                    }
-                }
-            }
-        } else {
-            _streamFilterState.update { StreamFilterState() }
-        }
-    }
-
-    private fun toggleStreamDisplayOriginalMessageOption() = _streamChatState.update { it.copy(showProcessedContent = !it.showProcessedContent) }
-
-    private fun toggleStreamClearDialog() {
-        _streamClearState.update { it.copy(showConfirmationDialog = !it.showConfirmationDialog) }
-    }
-
-    private fun clearStream() {
-        viewModelScope.launch { messageDao.delete(messageDao.findAll().filter { it.topicId == streamChatState.value.selected?.id }) }
-        toggleStreamClearDialog()
-    }
-
-    private fun handleDeepLinkBoundChange(bounded: Boolean) {
-        deepLinkBound = bounded
-    }
-}
-
-sealed interface StreamEvent {
-    data class MinDatetimeFilterChanged(val min: Long?) : StreamEvent
-    data class MaxDatetimeFilterChanged(val max: Long?) : StreamEvent
-    data class TextSearchFilterChanged(val query: String?) : StreamEvent
-
-    data class
-    SelectedStreamChanged(val streamSource: TopicEntity?) : StreamEvent
-
-    object ToggleStreamDisplayOriginalMessageOption : StreamEvent
-
-    object ToggleStreamClearDialog : StreamEvent
-    object StreamCleared : StreamEvent
-
-    data class DeepLinkBoundChanged(val deepLinkBound: Boolean) : StreamEvent
-}
-
-data class StreamFilterState(
-    val minDatetime: FormFieldState<Long?> = FormFieldState(null),
-    val maxDatetime: FormFieldState<Long?> = FormFieldState(null),
-    val query: FormFieldState<String?> = FormFieldState(null)
-) : FormState {
-    override fun valid(): Boolean = listOf(minDatetime, maxDatetime, query).all { it.errorMsg == null }
-}
-
-data class StreamClearState(
-    val showConfirmationDialog: Boolean = false
-)
-
-data class StreamChatState(
-    val selected: TopicEntity? = null,
-    val showProcessedContent: Boolean = true
-)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StreamScreen(vm: StreamViewModel, navController: NavHostController) {
+fun StreamScreen(vm: StreamScreenViewModel, navController: NavHostController) {
     val connections by vm.connections.collectAsStateWithLifecycle()
     val streamSourceState by vm.streamChatState.collectAsStateWithLifecycle()
     val streamSources by vm.topics.collectAsStateWithLifecycle(emptyList())
     val brokers by vm.brokers.collectAsStateWithLifecycle(emptyList())
     val messages by vm.messages.collectAsStateWithLifecycle(emptyList())
 
-    DisposableEffect(Unit) { onDispose { vm.onEvent(StreamEvent.SelectedStreamChanged(null)) } }
+    DisposableEffect(Unit) { onDispose { vm.onEvent(StreamScreenEvent.SelectedStreamChanged(null)) } }
     if (streamSourceState.selected != null) {
         ModalBottomSheet(
             modifier = Modifier.fillMaxWidth(),
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true, confirmValueChange = { value -> value != SheetValue.Hidden }),
             dragHandle = { BottomSheetDefaults.DragHandle() },
             onDismissRequest = {
-                vm.onEvent(StreamEvent.SelectedStreamChanged(null))
+                vm.onEvent(StreamScreenEvent.SelectedStreamChanged(null))
             }
         ) {
             StreamSourceChat(vm)
@@ -257,7 +103,7 @@ fun StreamScreen(vm: StreamViewModel, navController: NavHostController) {
         brokers.forEach { connection ->
             item {
                 Text(connection.name, style = MaterialTheme.typography.titleMedium)
-                Text(Utils.abbreviateMiddle("${connection.connectionType.toString().lowercase()}://${connection.ip}:${connection.port}", 32), style = MaterialTheme.typography.labelSmall)
+                Text(Utils.abbreviateMiddle("${connection.connectionType.toString().lowercase()}://${connection.host}:${connection.port}", 32), style = MaterialTheme.typography.labelSmall)
                 Spacer(Modifier.height(10.dp))
             }
             val brokerStreamSources = streamSources.filter { it.brokerId == connection.id }
@@ -302,6 +148,7 @@ fun StatusTopBar(navController: NavHostController, connectionStates: Map<String,
         Text("Master MQTT", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium)
         Spacer(Modifier.weight(1f))
         Row(verticalAlignment = Alignment.CenterVertically) {
+            /* TODO: Add safety button checks here */
             SafetyButton(onConfirmedClick = { showSettingsScreen = true }) {
                 Icon(Icons.Filled.Settings, contentDescription = "Settings")
             }
@@ -350,14 +197,14 @@ fun StatusTopBar(navController: NavHostController, connectionStates: Map<String,
 
 @SuppressLint("SimpleDateFormat")
 @Composable
-fun StreamSourceContainer(vm: StreamViewModel, streamSource: TopicEntity) {
+fun StreamSourceContainer(vm: StreamScreenViewModel, streamSource: TopicEntity) {
     val messages by vm.messages.collectAsStateWithLifecycle(emptyList())
     val streamMessages = messages.filter { it.topicId == streamSource.id }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        onClick = { vm.onEvent(StreamEvent.SelectedStreamChanged(streamSource)) }
+        onClick = { vm.onEvent(StreamScreenEvent.SelectedStreamChanged(streamSource)) }
     ) {
         Column(
             modifier = Modifier
@@ -405,10 +252,10 @@ fun StreamSourceContainer(vm: StreamViewModel, streamSource: TopicEntity) {
 }
 
 @Composable
-fun StreamSourceChat(vm: StreamViewModel) {
+fun StreamSourceChat(vm: StreamScreenViewModel) {
     val connections by vm.connections.collectAsStateWithLifecycle()
     val streamChatState by vm.streamChatState.collectAsStateWithLifecycle()
-    val streamClearState by vm.streamClearState.collectAsStateWithLifecycle()
+    val streamClearDialogState by vm.streamClearDialogState.collectAsStateWithLifecycle()
     val streamFilterState by vm.streamFilterState.collectAsStateWithLifecycle()
     val messages by vm.messages.collectAsStateWithLifecycle(emptyList())
     val streamMessages = messages.filter {
@@ -417,19 +264,7 @@ fun StreamSourceChat(vm: StreamViewModel) {
         val maxDatetimeValid = if (streamFilterState.maxDatetime.value != null) it.date <= streamFilterState.maxDatetime.value!! else true
         it.topicId == streamChatState.selected?.id && queryValid && minDatetimeValid && maxDatetimeValid
     }
-    if (streamClearState.showConfirmationDialog) {
-        AlertDialog(
-            onDismissRequest = { vm.onEvent(StreamEvent.ToggleStreamClearDialog) },
-            title = { Text("Clear stream history?") },
-            text = { Text("You will completely wipe out this stream history. This action is irreversible.") },
-            confirmButton = {
-                TextButton(onClick = { vm.onEvent(StreamEvent.StreamCleared) }) { Text("Proceed") }
-            },
-            dismissButton = {
-                TextButton(onClick = { vm.onEvent(StreamEvent.ToggleStreamClearDialog) }) { Text("Cancel") }
-            }
-        )
-    }
+    DialogWindow(streamClearDialogState)
     Box(Modifier.fillMaxSize()) {
         Column(
             Modifier
@@ -454,7 +289,7 @@ fun StreamSourceChatHeader(
     connections: Map<String, MqttConnection>,
     streamSourceState: TopicEntity,
     displayProcessedMessage: Boolean,
-    onEvent: (StreamEvent) -> Unit
+    onEvent: (StreamScreenEvent) -> Unit
 ) {
     Row(
         Modifier
@@ -470,7 +305,7 @@ fun StreamSourceChatHeader(
                 Icon(
                     modifier = Modifier
                         .size(24.dp)
-                        .clickable(onClick = { onEvent(StreamEvent.SelectedStreamChanged(null)) }, interactionSource = null, indication = null),
+                        .clickable(onClick = { onEvent(StreamScreenEvent.SelectedStreamChanged(null)) }, interactionSource = null, indication = null),
                     imageVector = Icons.Default.Close,
                     contentDescription = null
                 )
@@ -502,14 +337,14 @@ fun StreamSourceChatHeader(
             IconButton(
                 modifier = Modifier.size(30.dp),
                 colors = IconButtonDefaults.iconButtonColors(containerColor = if (displayProcessedMessage) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary, contentColor = if (displayProcessedMessage) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onTertiary),
-                onClick = { onEvent(StreamEvent.ToggleStreamDisplayOriginalMessageOption) }
+                onClick = { onEvent(StreamScreenEvent.ToggleStreamDisplayOriginalMessageOption) }
             ) {
                 Icon(modifier = Modifier.size(18.dp), imageVector = Icons.Filled.SwapHorizontalCircle, contentDescription = null)
             }
             IconButton(
                 modifier = Modifier.size(30.dp),
                 colors = IconButtonDefaults.iconButtonColors(containerColor = MaterialTheme.colorScheme.tertiary, contentColor = MaterialTheme.colorScheme.onTertiary),
-                onClick = { onEvent(StreamEvent.ToggleStreamClearDialog) }
+                onClick = { onEvent(StreamScreenEvent.ToggleStreamClearDialog) }
             ) {
                 Icon(modifier = Modifier.size(18.dp), imageVector = Icons.Filled.DeleteSweep, contentDescription = null)
             }
@@ -518,15 +353,15 @@ fun StreamSourceChatHeader(
 }
 
 @Composable
-fun StreamSourceChatFilters(streamFilterState: StreamFilterState, onEvent: (StreamEvent) -> Unit) {
+fun StreamSourceChatFilters(streamMessagesFilterState: StreamMessagesFilterState, onEvent: (StreamScreenEvent) -> Unit) {
     var selectedStartDate by remember { mutableStateOf<LocalDate?>(null) }
     var selectedEndDate by remember { mutableStateOf<LocalDate?>(null) }
     var startQuarter by remember { mutableIntStateOf(0) }
     var endQuarter by remember { mutableIntStateOf(96) }
 
     OutlinedTextField(
-        value = streamFilterState.query.value ?: "",
-        onValueChange = { onEvent(StreamEvent.TextSearchFilterChanged(it)) },
+        value = streamMessagesFilterState.query.value ?: "",
+        onValueChange = { onEvent(StreamScreenEvent.TextSearchFilterChanged(it)) },
         label = { Text("Search text") },
         placeholder = { Text("Query") },
         trailingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
@@ -537,20 +372,20 @@ fun StreamSourceChatFilters(streamFilterState: StreamFilterState, onEvent: (Stre
         onStartDateSelected = { date ->
             selectedStartDate = date
             val timestamp = combineDateAndTime(date, startQuarter)
-            onEvent(StreamEvent.MinDatetimeFilterChanged(timestamp))
+            onEvent(StreamScreenEvent.MinDatetimeFilterChanged(timestamp))
         },
         onEndDateSelected = { date ->
             selectedEndDate = date
             val timestamp = combineDateAndTime(date, endQuarter)
-            onEvent(StreamEvent.MaxDatetimeFilterChanged(timestamp))
+            onEvent(StreamScreenEvent.MaxDatetimeFilterChanged(timestamp))
         },
         onTimeRangeChanged = { start, end ->
             startQuarter = start
             endQuarter = end
             val minTs = combineDateAndTime(selectedStartDate, start)
             val maxTs = combineDateAndTime(selectedEndDate, end, selectedStartDate)
-            onEvent(StreamEvent.MinDatetimeFilterChanged(minTs))
-            onEvent(StreamEvent.MaxDatetimeFilterChanged(maxTs))
+            onEvent(StreamScreenEvent.MinDatetimeFilterChanged(minTs))
+            onEvent(StreamScreenEvent.MaxDatetimeFilterChanged(maxTs))
         }
     )
     Spacer(Modifier.height(16.dp))
@@ -608,7 +443,7 @@ fun ConnectionsQuickView(connectionStates: Map<String, MqttConnection>) {
                         Text(connection.broker.name, style = MaterialTheme.typography.titleMedium)
                         Text(
                             Utils.abbreviateMiddle(
-                                "${if (connection.broker.connectionType == ConnectionType.TCP) "tcp://" else "ssl://"}${connection.broker.ip}:${connection.broker.port}",
+                                "${if (connection.broker.connectionType == ConnectionType.TCP) "tcp://" else "ssl://"}${connection.broker.host}:${connection.broker.port}",
                                 32
                             ), style = MaterialTheme.typography.labelSmall
                         )

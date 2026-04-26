@@ -9,17 +9,19 @@ import com.egorgoncharov.mastermqtt.model.types.ConnectionType
 data class BrokerEntity(
     @PrimaryKey val id: String,
     @ColumnInfo("name") val name: String,
-    @ColumnInfo("clientId") val clientId: String,
-    @ColumnInfo("connected") val connected: Boolean,
-    @ColumnInfo("ip") val ip: String,
+    @ColumnInfo("host") val host: String,
     @ColumnInfo("port") val port: Int,
-    @ColumnInfo("user") val user: String?,
-    @ColumnInfo("password") val password: String?,
+    @ColumnInfo("authUser") val authUser: String?,
+    @ColumnInfo("authPassword") val authPassword: String?,
     @ColumnInfo("connectionType") val connectionType: ConnectionType,
+    @ColumnInfo("clientId") val clientId: String,
     @ColumnInfo("keepAliveInterval") val keepAliveInterval: Int,
+    @ColumnInfo("cleanStart") val cleanStart: Boolean,
     @ColumnInfo("reconnectAttempts") val reconnectAttempts: Int?,
-    @ColumnInfo("displayIndex") val displayIndex: Int,
-    @ColumnInfo("removed") val removed: Boolean
+    @ColumnInfo("reconnectInterval") val reconnectInterval: Int,
+    @ColumnInfo("sessionExpiryInterval") val sessionExpiryInterval: Int?,
+    @ColumnInfo("connected") val connected: Boolean,
+    @ColumnInfo("displayIndex") val displayIndex: Int
 ) {
-    fun address(includeProtocol: Boolean = false) = (if (includeProtocol) "${connectionType.name.lowercase()}://" else "") + "$ip:$port"
+    fun address(includeProtocol: Boolean = false) = (if (includeProtocol) "${connectionType.name.lowercase()}://" else "") + "$host:$port"
 }

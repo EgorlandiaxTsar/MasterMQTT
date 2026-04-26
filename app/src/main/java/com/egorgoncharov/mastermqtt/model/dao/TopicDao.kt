@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface TopicDao : BaseDao<TopicEntity> {
     @Query("SELECT * FROM topics")
-    suspend fun findAll(): List<TopicEntity>;
+    suspend fun findAll(): List<TopicEntity>
 
     @Query("SELECT * FROM topics WHERE id = :id")
     suspend fun findById(id: String): TopicEntity?
@@ -19,10 +19,10 @@ interface TopicDao : BaseDao<TopicEntity> {
     @Query("SELECT * FROM topics WHERE brokerId = :brokerId")
     suspend fun findByBroker(brokerId: String): List<TopicEntity>
 
-    @Query("SELECT * FROM topics WHERE removed = 0")
+    @Query("SELECT * FROM topics")
     fun streamTopics(): Flow<List<TopicEntity>>
 
-    @Query("SELECT * FROM topics WHERE removed = 0 AND brokerId = :brokerId")
+    @Query("SELECT * FROM topics WHERE brokerId = :brokerId")
     fun streamTopicsByBroker(brokerId: String): Flow<List<TopicEntity>>
 
     @Query("SELECT EXISTS(SELECT 1 FROM topics WHERE brokerId = :brokerId AND topic = :topic)")
@@ -32,7 +32,6 @@ interface TopicDao : BaseDao<TopicEntity> {
     suspend fun exclusiveDelete(ids: List<String>)
     @Query("DELETE FROM topics")
     suspend fun deleteAll()
-
     @Query("DELETE FROM topics WHERE brokerId = :brokerId")
     suspend fun deleteByBroker(brokerId: String)
 }

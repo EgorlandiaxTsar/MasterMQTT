@@ -3,14 +3,6 @@ package com.egorgoncharov.mastermqtt
 import android.annotation.SuppressLint
 import android.content.Context
 import android.provider.OpenableColumns
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Lightbulb
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Power
-import androidx.compose.material.icons.filled.Sensors
-import androidx.compose.material.icons.filled.Warning
 import androidx.core.net.toUri
 import java.nio.file.Paths
 import java.text.SimpleDateFormat
@@ -18,16 +10,6 @@ import java.util.Date
 
 class Utils {
     companion object {
-        val icons = mapOf(
-            "Notifications" to Icons.Default.Notifications,
-            "Warning" to Icons.Default.Warning,
-            "Info" to Icons.Default.Info,
-            "Light" to Icons.Default.Lightbulb,
-            "Home" to Icons.Default.Home,
-            "Sensors" to Icons.Default.Sensors,
-            "Power" to Icons.Default.Power
-        )
-
         inline fun <reified T : Enum<T>> fromEnum(o: T?): String? {
             return o?.name
         }
@@ -50,7 +32,7 @@ class Utils {
             }
             return try {
                 uri.path?.let { Paths.get(it).fileName.toString() } ?: "unknown_file"
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 path.substringAfterLast('/')
             }
         }

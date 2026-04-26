@@ -1,4 +1,4 @@
-package com.egorgoncharov.mastermqtt.screen
+package com.egorgoncharov.mastermqtt.screen.settings.topics
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
@@ -21,7 +21,10 @@ import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.CellTower
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterAlt
+import androidx.compose.material.icons.filled.Nightlight
+import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material.icons.filled.SpatialAudio
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
@@ -38,6 +41,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetValue
+import androidx.compose.material3.Slider
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Switch
@@ -51,291 +55,27 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavHostController
 import com.egorgoncharov.mastermqtt.Utils
-import com.egorgoncharov.mastermqtt.model.dao.BrokerDao
-import com.egorgoncharov.mastermqtt.model.dao.MessageDao
-import com.egorgoncharov.mastermqtt.model.dao.TopicDao
 import com.egorgoncharov.mastermqtt.model.entity.BrokerEntity
 import com.egorgoncharov.mastermqtt.model.entity.TopicEntity
-import com.egorgoncharov.mastermqtt.model.types.ConnectionType
 import com.egorgoncharov.mastermqtt.ui.components.AudioPicker
+import com.egorgoncharov.mastermqtt.ui.components.DialogWindow
 import com.egorgoncharov.mastermqtt.ui.components.Empty
-import com.egorgoncharov.mastermqtt.ui.components.EntityManagingFormState
 import com.egorgoncharov.mastermqtt.ui.components.Error
-import com.egorgoncharov.mastermqtt.ui.components.FormFieldState
 import com.egorgoncharov.mastermqtt.ui.components.FormIsland
 import com.egorgoncharov.mastermqtt.ui.components.ItemAction
 import com.egorgoncharov.mastermqtt.ui.components.ItemProperty
 import com.egorgoncharov.mastermqtt.ui.components.SettingsTopBar
-import com.egorgoncharov.mastermqtt.ui.components.jsonPathRegex
-import com.egorgoncharov.mastermqtt.ui.components.nameRegex
-import com.egorgoncharov.mastermqtt.ui.components.update
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
-import java.util.UUID
-
-class TopicViewModel(
-    private val brokerDao: BrokerDao,
-    private val topicDao: TopicDao,
-    private val messageDao: MessageDao
-) :
-    ViewModel() {
-    companion object {
-        fun Factory(brokerDao: BrokerDao, topicDao: TopicDao, messageDao: MessageDao): ViewModelProvider.Factory =
-            viewModelFactory {
-                initializer { TopicViewModel(brokerDao, topicDao, messageDao) }
-            }
-    }
-
-    private val _manageTopicState = MutableStateFlow(ManageTopicState())
-
-    val topics = topicDao.streamTopics()
-    val brokers = brokerDao.streamBrokers()
-    val manageTopicState = _manageTopicState.asStateFlow()
-
-    fun onEvent(event: TopicEvent) {
-        when (event) {
-            is TopicEvent.BrokerChanged -> handleBrokerChange(event.broker)
-            is TopicEvent.NameChanged -> handleNameChange(event.name)
-            is TopicEvent.TopicChanged -> handleTopicChange(event.topic)
-            is TopicEvent.PayloadSettingChanged -> handlePayloadSettingsChange(event.showPayload, event.binaryDecoding, event.jsonPaths)
-            is TopicEvent.HighPriorityChanged -> handleHighPriorityChange(event.highPriority)
-            is TopicEvent.TTSTextChanged -> handleTTSTextChanged(event.ttsText)
-            is TopicEvent.NotificationSoundChanged -> handleNotificationSoundChanged(event.notificationSound)
-            is TopicEvent.TopicSaved -> saveTopic()
-            is TopicEvent.ToggleManageForm -> toggleManageForm(event.reference)
-            is TopicEvent.ToggleTopic -> toggleTopic(event.topic)
-            is TopicEvent.DeleteTopic -> deleteTopic(event.topic)
-        }
-    }
-
-    private fun handleBrokerChange(broker: BrokerEntity) {
-        _manageTopicState.update(
-            { it.broker },
-            broker,
-            { if (broker.id.isNotBlank()) null else "Broker is required" }
-        ) { copy(broker = it) }
-        checkExists()
-    }
-
-    private fun handleNameChange(name: String) = _manageTopicState.update(
-        { it.name },
-        name,
-        { if (name.matches(nameRegex)) null else "Invalid name format" }
-    ) { copy(name = it) }
-
-    private fun handleTopicChange(topic: String) {
-        _manageTopicState.update(
-            { it.topic },
-            topic,
-            { null /* TODO: Should probably add an MQTT topic check regex */ }
-        ) { copy(topic = it) }
-        checkExists()
-    }
-
-    private fun handlePayloadSettingsChange(
-        showPayload: Boolean,
-        binaryDecoding: Boolean,
-        jsonPaths: String
-    ) {
-        _manageTopicState.update(
-            { it.showPayload },
-            showPayload,
-            { null }
-        ) { copy(showPayload = it) }
-        _manageTopicState.update(
-            { it.binaryEncoding },
-            binaryDecoding,
-            { null }
-        ) { copy(binaryEncoding = it) }
-        _manageTopicState.update(
-            { it.jsonPaths },
-            jsonPaths,
-            {
-                if (jsonPaths.isEmpty()) null
-                else {
-                    if (jsonPaths.split(",")
-                            .find { path -> !path.matches(jsonPathRegex) } == null
-                    ) null else "Invalid JSON paths sequence"
-                }
-            }
-        ) { copy(jsonPaths = it) }
-    }
-
-    private fun handleHighPriorityChange(highPriority: Boolean) = _manageTopicState.update(
-        { it.highPriority },
-        highPriority,
-        { null }
-    ) { copy(highPriority = it) }
-
-    private fun handleTTSTextChanged(ttsText: String) = _manageTopicState.update(
-        { it.ttsText },
-        ttsText,
-        { if (ttsText.length <= 32) null else "TTS text too long" }
-    ) { copy(ttsText = it) }
-
-    private fun handleNotificationSoundChanged(notificationSound: String) =
-        _manageTopicState.update(
-            { it.notificationSound },
-            notificationSound,
-            { null }
-        ) { copy(notificationSound = it) }
-
-    private fun saveTopic() {
-        if (!manageTopicState.value.valid()) return
-        val state = manageTopicState.value
-        viewModelScope.launch {
-            topicDao.save(
-                TopicEntity(
-                    id = state.reference?.id ?: UUID.randomUUID().toString(),
-                    brokerId = state.broker.value.id,
-                    name = state.name.value,
-                    topic = state.topic.value,
-                    enabled = state.reference?.enabled ?: false,
-                    payloadContent = if (state.showPayload.value) "${if (state.binaryEncoding.value) "b@" else ""}${state.jsonPaths.value}" else null,
-                    notificationColor = Color.White,
-                    notificationIcon = "",
-                    notificationSoundPath = state.notificationSound.value,
-                    notificationSoundText = state.ttsText.value,
-                    highPriority = state.highPriority.value,
-                    displayIndex = 0,
-                    lastOpened = System.currentTimeMillis(),
-                    removed = false,
-                )
-            )
-        }
-        toggleManageForm(null)
-    }
-
-    private fun toggleManageForm(reference: TopicEntity?) {
-        resetManageForm()
-        _manageTopicState.update {
-            ManageTopicState(
-                visible = !it.visible,
-                reference = reference
-            )
-        }
-        updateManageFormErrors()
-        if (reference != null) {
-            viewModelScope.launch {
-                handleBrokerChange(
-                    brokerDao.findById(reference.brokerId) ?: return@launch
-                )
-            }
-        }
-    }
-
-    private fun resetManageForm() {
-        _manageTopicState.update { ManageTopicState(visible = it.visible) }
-    }
-
-    private fun updateManageFormErrors() {
-        handleBrokerChange(manageTopicState.value.broker.value)
-        handleNameChange(manageTopicState.value.name.value)
-        handleTopicChange(manageTopicState.value.topic.value)
-        handlePayloadSettingsChange(
-            manageTopicState.value.showPayload.value,
-            manageTopicState.value.binaryEncoding.value,
-            manageTopicState.value.jsonPaths.value
-        )
-        handleHighPriorityChange(manageTopicState.value.highPriority.value)
-        handleTTSTextChanged(manageTopicState.value.ttsText.value)
-        handleNotificationSoundChanged(manageTopicState.value.notificationSound.value)
-    }
-
-    private fun toggleTopic(topic: TopicEntity) {
-        viewModelScope.launch { topicDao.save(topic.copy(enabled = !topic.enabled)) }
-    }
-
-    private fun deleteTopic(topic: TopicEntity) {
-        viewModelScope.launch {
-            topicDao.delete(topic)
-            messageDao.deleteByTopic(topic.id)
-        }
-    }
-
-    private fun checkExists() {
-        viewModelScope.launch {
-            _manageTopicState.update { it.copy(exists = topicDao.existsByTopic(manageTopicState.value.broker.value.id, manageTopicState.value.topic.value)) }
-        }
-    }
-}
-
-sealed interface TopicEvent {
-    data class BrokerChanged(val broker: BrokerEntity) : TopicEvent
-    data class NameChanged(val name: String) : TopicEvent
-    data class TopicChanged(val topic: String) : TopicEvent
-    data class PayloadSettingChanged(
-        val showPayload: Boolean,
-        val binaryDecoding: Boolean,
-        val jsonPaths: String
-    ) : TopicEvent
-
-    data class HighPriorityChanged(val highPriority: Boolean) : TopicEvent
-    data class TTSTextChanged(val ttsText: String) : TopicEvent
-    data class NotificationSoundChanged(val notificationSound: String) : TopicEvent
-    object TopicSaved : TopicEvent
-    data class ToggleManageForm(val reference: TopicEntity?) : TopicEvent
-
-    data class ToggleTopic(val topic: TopicEntity) : TopicEvent
-    data class DeleteTopic(val topic: TopicEntity) : TopicEvent
-}
-
-data class ManageTopicState(
-    override val visible: Boolean = false,
-    override val reference: TopicEntity? = null,
-    val exists: Boolean = false,
-    val broker: FormFieldState<BrokerEntity> = FormFieldState(
-        BrokerEntity(
-            id = reference?.brokerId ?: "",
-            name = "Choose topic's broker",
-            clientId = "",
-            connected = false,
-            ip = "0.0.0.0",
-            port = 0,
-            user = null,
-            password = null,
-            connectionType = ConnectionType.TCP,
-            keepAliveInterval = 0,
-            reconnectAttempts = 0,
-            displayIndex = 0,
-            removed = true
-        )
-    ),
-    val name: FormFieldState<String> = FormFieldState(reference?.name ?: ""),
-    val topic: FormFieldState<String> = FormFieldState(reference?.topic ?: ""),
-    val showPayload: FormFieldState<Boolean> = FormFieldState(if (reference == null) false else reference.payloadContent != null),
-    val binaryEncoding: FormFieldState<Boolean> = FormFieldState(
-        reference?.payloadContent?.startsWith(
-            "b@"
-        ) ?: false
-    ),
-    val jsonPaths: FormFieldState<String> = FormFieldState(reference?.payloadContent ?: ""),
-    val highPriority: FormFieldState<Boolean> = FormFieldState(reference?.highPriority ?: false),
-    val ttsText: FormFieldState<String> = FormFieldState(reference?.notificationSoundText ?: ""),
-    val notificationSound: FormFieldState<String> = FormFieldState(
-        reference?.notificationSoundPath ?: ""
-    )
-) : EntityManagingFormState<TopicEntity>() {
-    override fun valid(): Boolean = listOf(broker, name, topic, showPayload, binaryEncoding, jsonPaths, highPriority, ttsText, notificationSound).all { it.errorMsg == null }
-}
+import kotlin.math.round
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TopicsScreen(vm: TopicViewModel, navController: NavHostController) {
-    val manageTopicState by vm.manageTopicState.collectAsStateWithLifecycle()
+fun TopicsScreen(vm: TopicsScreenViewModel, navController: NavHostController) {
+    val manageTopicState by vm.manageTopicsFormState.collectAsStateWithLifecycle()
     val brokers by vm.brokers.collectAsStateWithLifecycle(emptyList())
     val topics by vm.topics.collectAsStateWithLifecycle(emptyList())
 
@@ -344,14 +84,14 @@ fun TopicsScreen(vm: TopicViewModel, navController: NavHostController) {
             modifier = Modifier.fillMaxWidth(),
             sheetState = rememberModalBottomSheetState(confirmValueChange = { it != SheetValue.Hidden }, skipPartiallyExpanded = true),
             dragHandle = { BottomSheetDefaults.DragHandle() },
-            onDismissRequest = { vm.onEvent(TopicEvent.ToggleManageForm(null)) }
+            onDismissRequest = { vm.onEvent(TopicsScreenEvent.ToggleManageForm(null)) }
         ) {
             TopicManage(manageTopicState, brokers) { vm.onEvent(it) }
         }
     }
     Column(Modifier.fillMaxWidth()) {
         SettingsTopBar(navController, "Topics Management") {
-            button(onClick = { vm.onEvent(TopicEvent.ToggleManageForm(null)) }) {
+            button(onClick = { vm.onEvent(TopicsScreenEvent.ToggleManageForm(null)) }) {
                 Icon(modifier = Modifier.size(24.dp), imageVector = Icons.Default.AddCircle, contentDescription = null)
             }
         }
@@ -360,7 +100,7 @@ fun TopicsScreen(vm: TopicViewModel, navController: NavHostController) {
             brokers.forEach { broker ->
                 item {
                     Text(broker.name, style = MaterialTheme.typography.titleMedium)
-                    Text(Utils.abbreviateMiddle("${broker.connectionType.toString().lowercase()}://${broker.ip}:${broker.port}", 32), style = MaterialTheme.typography.labelSmall)
+                    Text(Utils.abbreviateMiddle("${broker.connectionType.toString().lowercase()}://${broker.host}:${broker.port}", 32), style = MaterialTheme.typography.labelSmall)
                     Spacer(Modifier.height(10.dp))
                 }
                 val brokerTopics = topics.filter { it.brokerId == broker.id }
@@ -377,18 +117,20 @@ fun TopicsScreen(vm: TopicViewModel, navController: NavHostController) {
 }
 
 @Composable
-fun TopicContainer(vm: TopicViewModel, topic: TopicEntity) {
+fun TopicContainer(vm: TopicsScreenViewModel, topic: TopicEntity) {
+    val topicDeleteConfirmationDialogState by vm.topicDeleteConfirmationDialogState.collectAsStateWithLifecycle()
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
             if (value == SwipeToDismissBoxValue.StartToEnd) {
-                vm.onEvent(TopicEvent.DeleteTopic(topic))
-                true
+                vm.onEvent(TopicsScreenEvent.ToggleTopicDeleteConfirmationDialog(topic, true))
+                false
             } else false
         },
         positionalThreshold = { totalDistance -> totalDistance * 0.85f }
     )
     var expanded by remember { mutableStateOf(false) }
 
+    DialogWindow(topicDeleteConfirmationDialogState)
     SwipeToDismissBox(
         state = dismissState,
         enableDismissFromEndToStart = false,
@@ -414,7 +156,7 @@ fun TopicContainer(vm: TopicViewModel, topic: TopicEntity) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun TopicHead(topic: TopicEntity, onEvent: (TopicEvent) -> Unit) {
+fun TopicHead(topic: TopicEntity, onEvent: (TopicsScreenEvent) -> Unit) {
     Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.SpaceBetween) {
         Column(Modifier.weight(1f)) {
             Text(topic.name, style = MaterialTheme.typography.labelLarge)
@@ -433,10 +175,10 @@ fun TopicHead(topic: TopicEntity, onEvent: (TopicEvent) -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(5.dp)
         ) {
             Spacer(Modifier.width(5.dp))
-            ItemAction(Icons.Filled.Edit, onClick = { onEvent(TopicEvent.ToggleManageForm(topic)) })
+            ItemAction(Icons.Filled.Edit, onClick = { onEvent(TopicsScreenEvent.ToggleManageForm(topic)) })
             Switch(
                 checked = topic.enabled,
-                onCheckedChange = { onEvent(TopicEvent.ToggleTopic(topic)) }
+                onCheckedChange = { onEvent(TopicsScreenEvent.ToggleTopic(topic)) }
             )
         }
     }
@@ -455,18 +197,42 @@ fun TopicBody(topic: TopicEntity) {
         verticalArrangement = Arrangement.spacedBy(3.dp),
         horizontalArrangement = Arrangement.spacedBy(3.dp)
     ) {
-        if (topic.highPriority) ItemProperty("HighPriority", "", Icons.Filled.Warning)
-        ItemProperty("NotificationBody", topic.payloadContent?.replaceFirst("b@", "")?.ifBlank { "Full Payload" } ?: "Empty", Icons.Filled.FilterAlt)
-        if (!topic.notificationSoundText.isNullOrBlank()) ItemProperty(
-            "NotificationSoundText", topic.notificationSoundText,
+        ItemProperty(
+            "QoS",
+            "${topic.qos}",
+            Icons.Filled.SignalCellularAlt
+        )
+        ItemProperty(
+            "High Priority",
+            if (topic.highPriority) "Yes" else "No",
+            Icons.Filled.Warning
+        )
+        ItemProperty(
+            "Ignore Bed Time",
+            if (topic.ignoreBedTime) "Yes" else "No",
+            Icons.Filled.Nightlight
+        )
+        ItemProperty(
+            "Notification Sound Level",
+            "${topic.notificationSoundLevel?.times(100)?.toInt()}%",
+            Icons.Filled.VolumeUp
+        )
+        ItemProperty(
+            "Notification TTS Text", topic.notificationSoundText ?: "None",
             Icons.Filled.SpatialAudio
+        )
+        ItemProperty(
+            "Notification Body",
+            topic.payloadContent?.replaceFirst("b@", "")?.ifBlank { "Full Payload" } ?: "Empty",
+            Icons.Filled.FilterAlt
         )
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TopicManage(state: ManageTopicState, brokers: List<BrokerEntity>, onEvent: (TopicEvent) -> Unit) {
+fun TopicManage(state: ManageTopicsFormState, brokers: List<BrokerEntity>, onEvent: (TopicsScreenEvent) -> Unit) {
+    var expandedQosSelector by remember { mutableStateOf(false) }
     var expandedBrokerSelector by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
@@ -484,7 +250,7 @@ fun TopicManage(state: ManageTopicState, brokers: List<BrokerEntity>, onEvent: (
                 )
             }
             item {
-                FormIsland(title = "Broker & Topic") {
+                FormIsland(title = "General") {
                     ExposedDropdownMenuBox(
                         expanded = expandedBrokerSelector,
                         onExpandedChange = { expandedBrokerSelector = it }
@@ -509,7 +275,7 @@ fun TopicManage(state: ManageTopicState, brokers: List<BrokerEntity>, onEvent: (
                                 DropdownMenuItem(
                                     text = { Text(broker.name) },
                                     onClick = {
-                                        onEvent(TopicEvent.BrokerChanged(broker))
+                                        onEvent(TopicsScreenEvent.BrokerChanged(broker))
                                         expandedBrokerSelector = false
                                     }
                                 )
@@ -518,7 +284,7 @@ fun TopicManage(state: ManageTopicState, brokers: List<BrokerEntity>, onEvent: (
                     }
                     OutlinedTextField(
                         value = state.name.value,
-                        onValueChange = { onEvent(TopicEvent.NameChanged(it)) },
+                        onValueChange = { onEvent(TopicsScreenEvent.NameChanged(it)) },
                         label = { Text("Name") },
                         isError = state.name.errorMsg != null,
                         supportingText = { if (state.name.errorMsg != null) Text(state.name.errorMsg) },
@@ -526,12 +292,55 @@ fun TopicManage(state: ManageTopicState, brokers: List<BrokerEntity>, onEvent: (
                     )
                     OutlinedTextField(
                         value = state.topic.value,
-                        onValueChange = { onEvent(TopicEvent.TopicChanged(it)) },
+                        onValueChange = { onEvent(TopicsScreenEvent.TopicChanged(it)) },
                         label = { Text("Topic") },
                         isError = state.topic.errorMsg != null,
                         supportingText = { if (state.topic.errorMsg != null) Text(state.topic.errorMsg) },
                         modifier = Modifier.fillMaxWidth()
                     )
+                    ExposedDropdownMenuBox(
+                        expanded = expandedQosSelector,
+                        onExpandedChange = { expandedQosSelector = it }
+                    ) {
+                        OutlinedTextField(
+                            value = state.qos.value.toString(),
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("QoS") },
+                            isError = state.qos.errorMsg != null,
+                            supportingText = { if (state.qos.errorMsg != null) Text(state.qos.errorMsg) },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedQosSelector) },
+                            modifier = Modifier
+                                .menuAnchor()
+                                .fillMaxWidth()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = expandedQosSelector,
+                            onDismissRequest = { expandedQosSelector = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("0 - At most once") },
+                                onClick = {
+                                    onEvent(TopicsScreenEvent.QosChanged("0"))
+                                    expandedQosSelector = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("1 - At least once") },
+                                onClick = {
+                                    onEvent(TopicsScreenEvent.QosChanged("1"))
+                                    expandedQosSelector = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("2 - Exactly once") },
+                                onClick = {
+                                    onEvent(TopicsScreenEvent.QosChanged("2"))
+                                    expandedQosSelector = false
+                                }
+                            )
+                        }
+                    }
                 }
             }
             item {
@@ -541,10 +350,10 @@ fun TopicManage(state: ManageTopicState, brokers: List<BrokerEntity>, onEvent: (
                             checked = state.showPayload.value,
                             onCheckedChange = {
                                 onEvent(
-                                    TopicEvent.PayloadSettingChanged(
+                                    TopicsScreenEvent.PayloadSettingChanged(
                                         it,
                                         state.binaryEncoding.value,
-                                        state.jsonPaths.value
+                                        state.payloadContent.value
                                     )
                                 )
                             }
@@ -561,10 +370,10 @@ fun TopicManage(state: ManageTopicState, brokers: List<BrokerEntity>, onEvent: (
                                 checked = state.binaryEncoding.value,
                                 onCheckedChange = {
                                     onEvent(
-                                        TopicEvent.PayloadSettingChanged(
+                                        TopicsScreenEvent.PayloadSettingChanged(
                                             state.showPayload.value,
                                             it,
-                                            state.jsonPaths.value
+                                            state.payloadContent.value
                                         )
                                     )
                                 }
@@ -580,10 +389,10 @@ fun TopicManage(state: ManageTopicState, brokers: List<BrokerEntity>, onEvent: (
                             }
                         }
                         OutlinedTextField(
-                            value = state.jsonPaths.value,
+                            value = state.payloadContent.value,
                             onValueChange = {
                                 onEvent(
-                                    TopicEvent.PayloadSettingChanged(
+                                    TopicsScreenEvent.PayloadSettingChanged(
                                         state.showPayload.value,
                                         state.binaryEncoding.value,
                                         it
@@ -591,9 +400,9 @@ fun TopicManage(state: ManageTopicState, brokers: List<BrokerEntity>, onEvent: (
                                 )
                             },
                             label = { Text("Paths") },
-                            isError = state.jsonPaths.errorMsg != null,
+                            isError = state.payloadContent.errorMsg != null,
                             supportingText = {
-                                if (state.jsonPaths.errorMsg != null) Text(state.jsonPaths.errorMsg)
+                                if (state.payloadContent.errorMsg != null) Text(state.payloadContent.errorMsg)
                                 else Text("Comma-separated JSON paths. Leave blank for full message.")
                             },
                             modifier = Modifier.fillMaxWidth()
@@ -604,13 +413,25 @@ fun TopicManage(state: ManageTopicState, brokers: List<BrokerEntity>, onEvent: (
             item {
                 FormIsland(title = "Alerts") {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Switch(checked = state.highPriority.value, onCheckedChange = { onEvent(TopicEvent.HighPriorityChanged(it)) })
+                        Switch(
+                            checked = state.highPriority.value,
+                            enabled = !state.ignoreBedTime.value,
+                            onCheckedChange = { onEvent(TopicsScreenEvent.HighPriorityChanged(it)) }
+                        )
                         Spacer(Modifier.width(12.dp))
                         Text("High Priority")
                     }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Switch(checked = state.ignoreBedTime.value, onCheckedChange = {
+                            onEvent(TopicsScreenEvent.IgnoreBedTimeChanged(it))
+                            if (it) onEvent(TopicsScreenEvent.HighPriorityChanged(true))
+                        })
+                        Spacer(Modifier.width(12.dp))
+                        Text("Ignore Bed Time Mode")
+                    }
                     OutlinedTextField(
                         value = state.ttsText.value,
-                        onValueChange = { onEvent(TopicEvent.TTSTextChanged(it)) },
+                        onValueChange = { onEvent(TopicsScreenEvent.TTSTextChanged(it)) },
                         label = { Text("Notification Text (TTS)") },
                         isError = state.ttsText.errorMsg != null,
                         supportingText = {
@@ -619,7 +440,27 @@ fun TopicManage(state: ManageTopicState, brokers: List<BrokerEntity>, onEvent: (
                         },
                         modifier = Modifier.fillMaxWidth()
                     )
-                    AudioPicker(state.reference?.notificationSoundPath ?: "") { onEvent(TopicEvent.NotificationSoundChanged(it)) }
+                    AudioPicker(state.reference?.notificationSoundPath ?: "") { onEvent(TopicsScreenEvent.NotificationSoundChanged(it)) }
+                    if (state.notificationSound.value.isNotBlank()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp)
+                        ) {
+                            Slider(
+                                value = state.notificationSoundLevel.value.toFloat(),
+                                onValueChange = { onEvent(TopicsScreenEvent.NotificationSoundLevelChanged(it.toDouble())) },
+                                onValueChangeFinished = { onEvent(TopicsScreenEvent.PlayNotificationSound) },
+                                valueRange = 0f..1.0f,
+                                steps = 19,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Text(
+                                text = "Volume ${round(state.notificationSoundLevel.value * 100).toInt()}%",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -636,14 +477,14 @@ fun TopicManage(state: ManageTopicState, brokers: List<BrokerEntity>, onEvent: (
         ) {
             OutlinedButton(
                 modifier = Modifier.weight(1f),
-                onClick = { onEvent(TopicEvent.ToggleManageForm(null)) }
+                onClick = { onEvent(TopicsScreenEvent.ToggleManageForm(null)) }
             ) {
                 Text("Cancel")
             }
             Button(
                 modifier = Modifier.weight(1f),
                 enabled = state.valid() && (state.reference != null || !state.exists),
-                onClick = { onEvent(TopicEvent.TopicSaved) }
+                onClick = { onEvent(TopicsScreenEvent.TopicSaved) }
             ) {
                 Text("Save")
             }
