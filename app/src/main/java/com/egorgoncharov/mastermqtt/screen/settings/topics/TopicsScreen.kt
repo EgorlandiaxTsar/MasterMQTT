@@ -15,12 +15,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.CellTower
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterAlt
+import androidx.compose.material.icons.filled.FolderCopy
 import androidx.compose.material.icons.filled.Nightlight
 import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material.icons.filled.SpatialAudio
@@ -56,6 +58,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
@@ -226,6 +230,11 @@ fun TopicBody(topic: TopicEntity) {
             topic.payloadContent?.replaceFirst("b@", "")?.ifBlank { "Full Payload" } ?: "Empty",
             Icons.Filled.FilterAlt
         )
+        ItemProperty(
+            "Message Age",
+            "${topic.messageAge}s",
+            Icons.Filled.FolderCopy
+        )
     }
 }
 
@@ -263,6 +272,7 @@ fun TopicManage(state: ManageTopicsFormState, brokers: List<BrokerEntity>, onEve
                             isError = state.broker.errorMsg != null,
                             supportingText = { if (state.broker.errorMsg != null) Text(state.broker.errorMsg) },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedBrokerSelector) },
+                            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None),
                             modifier = Modifier
                                 .menuAnchor()
                                 .fillMaxWidth()
@@ -288,6 +298,7 @@ fun TopicManage(state: ManageTopicsFormState, brokers: List<BrokerEntity>, onEve
                         label = { Text("Name") },
                         isError = state.name.errorMsg != null,
                         supportingText = { if (state.name.errorMsg != null) Text(state.name.errorMsg) },
+                        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None),
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
@@ -296,6 +307,7 @@ fun TopicManage(state: ManageTopicsFormState, brokers: List<BrokerEntity>, onEve
                         label = { Text("Topic") },
                         isError = state.topic.errorMsg != null,
                         supportingText = { if (state.topic.errorMsg != null) Text(state.topic.errorMsg) },
+                        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None),
                         modifier = Modifier.fillMaxWidth()
                     )
                     ExposedDropdownMenuBox(
@@ -310,6 +322,7 @@ fun TopicManage(state: ManageTopicsFormState, brokers: List<BrokerEntity>, onEve
                             isError = state.qos.errorMsg != null,
                             supportingText = { if (state.qos.errorMsg != null) Text(state.qos.errorMsg) },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedQosSelector) },
+                            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None),
                             modifier = Modifier
                                 .menuAnchor()
                                 .fillMaxWidth()
@@ -405,6 +418,7 @@ fun TopicManage(state: ManageTopicsFormState, brokers: List<BrokerEntity>, onEve
                                 if (state.payloadContent.errorMsg != null) Text(state.payloadContent.errorMsg)
                                 else Text("Comma-separated JSON paths. Leave blank for full message.")
                             },
+                            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None),
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -435,9 +449,11 @@ fun TopicManage(state: ManageTopicsFormState, brokers: List<BrokerEntity>, onEve
                         label = { Text("Notification Text (TTS)") },
                         isError = state.ttsText.errorMsg != null,
                         supportingText = {
-                            if (state.ttsText.errorMsg != null) Text(state.ttsText.errorMsg)
-                            else Text("${state.ttsText.value.length}/32 characters")
+                            val additionalInfo = "\nYou can write normal TTS text and reference a JSON value with \"={ ... }\". Use \"={*}\" to speak full message."
+                            if (state.ttsText.errorMsg != null) Text("${state.ttsText.errorMsg}$additionalInfo")
+                            else Text("${state.ttsText.value.length}/512 characters$additionalInfo")
                         },
+                        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None),
                         modifier = Modifier.fillMaxWidth()
                     )
                     AudioPicker(state.reference?.notificationSoundPath ?: "") { onEvent(TopicsScreenEvent.NotificationSoundChanged(it)) }
@@ -461,6 +477,23 @@ fun TopicManage(state: ManageTopicsFormState, brokers: List<BrokerEntity>, onEve
                             )
                         }
                     }
+                }
+            }
+            item {
+                FormIsland(title = "Storage") {
+                    OutlinedTextField(
+                        value = if (state.messageAge.value == null) "" else state.messageAge.value.toString(),
+                        onValueChange = { onEvent(TopicsScreenEvent.MessageAgeChanged(it)) },
+                        label = { Text("Message Age (s)") },
+                        isError = state.messageAge.errorMsg != null,
+                        supportingText = {
+                            if (state.messageAge.errorMsg != null) Text(
+                                state.messageAge.errorMsg
+                            )
+                        },
+                        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None, keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
         }

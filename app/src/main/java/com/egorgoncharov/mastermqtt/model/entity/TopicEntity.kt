@@ -18,6 +18,7 @@ data class TopicEntity(
     @ColumnInfo("notificationSoundText") val notificationSoundText: String?,
     @ColumnInfo("notificationSound") val notificationSoundPath: String?,
     @ColumnInfo("notificationSoundLevel") val notificationSoundLevel: Double?,
+    @ColumnInfo("messageAge") val messageAge: Int,
     @ColumnInfo("displayIndex") val displayIndex: Int,
     @ColumnInfo("lastOpened") val lastOpened: Long
 )

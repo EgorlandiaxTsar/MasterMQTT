@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import androidx.core.net.toUri
+import com.egorgoncharov.mastermqtt.Utils.Companion.resolveJsonTemplates
 import com.egorgoncharov.mastermqtt.model.entity.TopicEntity
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -32,13 +33,17 @@ open class SoundManager(protected val context: Context) {
         }
     }
 
-    suspend fun alert(topic: TopicEntity) {
+    suspend fun alert(topic: TopicEntity, payload: String? = null) {
         if (!topic.notificationSoundPath.isNullOrBlank() && topic.notificationSoundLevel != null) {
             playSound(topic.notificationSoundPath, topic.notificationSoundLevel, topic.ignoreBedTime)
         }
-//        if (!topic.notificationSoundText.isNullOrBlank()) {
-//            speak(topic.notificationSoundText)
-//        }
+        var textToSpeak = topic.notificationSoundText
+        if (!textToSpeak.isNullOrBlank() && !payload.isNullOrBlank() && textToSpeak.contains("={")) {
+            textToSpeak = resolveJsonTemplates(textToSpeak, payload)
+        }
+        if (!textToSpeak.isNullOrBlank()) {
+            speak(textToSpeak)
+        }
     }
 
     fun shutdown() {
@@ -47,23 +52,38 @@ open class SoundManager(protected val context: Context) {
         isTtsReady = false
     }
 
-    open fun playSound(path: String, volume: Double = 1.0, bypassDnd: Boolean = false) {
-        try {
-            MediaPlayer().apply {
-                setDataSource(context, path.toUri())
-                setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(if (bypassDnd) AudioAttributes.USAGE_ALARM else AudioAttributes.USAGE_NOTIFICATION)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build()
-                )
-                setVolume(volume.toFloat(), volume.toFloat())
-                prepare()
-                start()
-                setOnCompletionListener { release() }
+    open suspend fun playSound(path: String, volume: Double = 1.0, bypassDnd: Boolean = false) {
+        return suspendCancellableCoroutine { cont ->
+            try {
+                val mediaPlayer = MediaPlayer().apply {
+                    setDataSource(context, path.toUri())
+                    setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(if (bypassDnd) AudioAttributes.USAGE_ALARM else AudioAttributes.USAGE_NOTIFICATION)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build()
+                    )
+                    setVolume(volume.toFloat(), volume.toFloat())
+                    setOnCompletionListener {
+                        it.release()
+                        if (cont.isActive) cont.resume(Unit)
+                    }
+                    setOnErrorListener { mp, _, _ ->
+                        mp.release()
+                        if (cont.isActive) cont.resume(Unit)
+                        true
+                    }
+                    prepare()
+                }
+                mediaPlayer.start()
+                cont.invokeOnCancellation {
+                    mediaPlayer.stop()
+                    mediaPlayer.release()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                if (cont.isActive) cont.resume(Unit)
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
     }
 

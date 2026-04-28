@@ -4,12 +4,16 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.provider.OpenableColumns
 import androidx.core.net.toUri
+import org.json.JSONArray
+import org.json.JSONObject
 import java.nio.file.Paths
 import java.text.SimpleDateFormat
 import java.util.Date
 
 class Utils {
     companion object {
+        const val MAX_INPUT_NUMBER: Int = 1_000_000
+
         inline fun <reified T : Enum<T>> fromEnum(o: T?): String? {
             return o?.name
         }
@@ -50,5 +54,32 @@ class Utils {
 
         @SuppressLint("SimpleDateFormat")
         fun formatDate(date: Long, format: String = "HH:mm:ss\ndd/MM"): String = SimpleDateFormat(format).format(Date(date))
+
+        fun resolveJsonTemplates(text: String, jsonPayload: String): String {
+            if (text == "={*}") return jsonPayload
+            val regex = "=\\{(.*?)\\}".toRegex()
+            return regex.replace(text) { matchResult ->
+                val path = matchResult.groupValues[1]
+                extractJsonValue(jsonPayload, path) ?: ""
+            }
+        }
+
+        fun extractJsonValue(jsonString: String, path: String): String? {
+            return try {
+                val cleanPath = path.removePrefix("$").removePrefix(".")
+                val keys = cleanPath.split(".")
+                var currentElement: Any = JSONObject(jsonString)
+                for (key in keys) {
+                    currentElement = when (currentElement) {
+                        is JSONObject -> currentElement.get(key)
+                        is JSONArray -> currentElement.get(key.toInt())
+                        else -> return null
+                    }
+                }
+                currentElement.toString()
+            } catch (_: Exception) {
+                null
+            }
+        }
     }
 }

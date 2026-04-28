@@ -74,6 +74,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -379,6 +380,7 @@ fun BrokerManage(state: ManageBrokerFormState, onEvent: (BrokersScreenEvent) -> 
                         label = { Text("Name") },
                         isError = state.name.errorMsg != null,
                         supportingText = { if (state.name.errorMsg != null) Text(state.name.errorMsg) },
+                        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None),
                         modifier = Modifier.fillMaxWidth()
                     )
                     Row(
@@ -391,6 +393,7 @@ fun BrokerManage(state: ManageBrokerFormState, onEvent: (BrokersScreenEvent) -> 
                             label = { Text("IP Address/Domain") },
                             isError = state.host.errorMsg != null,
                             supportingText = { if (state.host.errorMsg != null) Text(state.host.errorMsg) },
+                            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None),
                             modifier = Modifier.weight(1f)
                         )
                         OutlinedTextField(
@@ -399,7 +402,7 @@ fun BrokerManage(state: ManageBrokerFormState, onEvent: (BrokersScreenEvent) -> 
                             label = { Text("Port") },
                             isError = state.port.errorMsg != null,
                             supportingText = { if (state.port.errorMsg != null) Text(state.port.errorMsg) },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None, keyboardType = KeyboardType.Number),
                             modifier = Modifier.width(100.dp)
                         )
                     }
@@ -436,6 +439,7 @@ fun BrokerManage(state: ManageBrokerFormState, onEvent: (BrokersScreenEvent) -> 
                             },
                             label = { Text("Username") },
                             isError = state.authUser.errorMsg != null,
+                            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None),
                             modifier = Modifier.fillMaxWidth()
                         )
                         OutlinedTextField(
@@ -451,6 +455,7 @@ fun BrokerManage(state: ManageBrokerFormState, onEvent: (BrokersScreenEvent) -> 
                             },
                             label = { Text("Password") },
                             visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None),
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -493,7 +498,7 @@ fun BrokerManage(state: ManageBrokerFormState, onEvent: (BrokersScreenEvent) -> 
                                     state.reconnectInterval.errorMsg
                                 )
                             },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None, keyboardType = KeyboardType.Number),
                             modifier = Modifier.weight(1f)
                         )
                         if (!state.infiniteReconnects.value) {
@@ -507,7 +512,7 @@ fun BrokerManage(state: ManageBrokerFormState, onEvent: (BrokersScreenEvent) -> 
                                         state.reconnectAttempts.errorMsg
                                     )
                                 },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None, keyboardType = KeyboardType.Number),
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -518,7 +523,7 @@ fun BrokerManage(state: ManageBrokerFormState, onEvent: (BrokersScreenEvent) -> 
                         label = { Text("Keep Alive (s)") },
                         isError = state.keepAliveInterval.errorMsg != null,
                         supportingText = { if (state.keepAliveInterval.errorMsg != null) Text(state.keepAliveInterval.errorMsg) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None, keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
 
@@ -540,6 +545,7 @@ fun BrokerManage(state: ManageBrokerFormState, onEvent: (BrokersScreenEvent) -> 
                         label = { Text("Client ID") },
                         isError = state.clientId.errorMsg != null,
                         supportingText = { if (state.clientId.errorMsg != null) Text(state.clientId.errorMsg) },
+                        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None),
                         modifier = Modifier.fillMaxWidth()
                     )
                     if (!state.cleanStart.value) {
@@ -549,6 +555,7 @@ fun BrokerManage(state: ManageBrokerFormState, onEvent: (BrokersScreenEvent) -> 
                             label = { Text("Messages Expiry Interval (s)") },
                             isError = state.sessionExpiryInterval.errorMsg != null,
                             supportingText = { if (state.sessionExpiryInterval.errorMsg != null) Text(state.sessionExpiryInterval.errorMsg) },
+                            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None),
                             modifier = Modifier.fillMaxWidth()
                         )
                     }

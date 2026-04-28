@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.AutoAwesomeMotion
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FilterAlt
+import androidx.compose.material.icons.filled.FolderCopy
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Nightlight
 import androidx.compose.material.icons.filled.Refresh
@@ -61,6 +62,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -129,7 +131,7 @@ fun StorageSettingsSection(settingsProfile: SettingsProfileEntity, onEvent: (Gen
             if (it.isNotBlank()) onEvent(GeneralSettingsScreenEvent.DefaultMessageAgeChanged(it))
         },
         label = { Text("Default Message Age (s)") },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None, keyboardType = KeyboardType.Number),
         modifier = Modifier.fillMaxWidth()
     )
     Spacer(Modifier.height(15.dp))
@@ -262,7 +264,7 @@ fun ImportBrokerContainer(broker: BrokerConfiguration) {
         modifier = Modifier
             .fillMaxWidth()
             .animateContentSize(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, contentColor = MaterialTheme.colorScheme.onSecondaryContainer),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, contentColor = MaterialTheme.colorScheme.onSurface),
         shape = RoundedCornerShape(24.dp),
         onClick = { expanded.value = !expanded.value }
     ) {
@@ -313,7 +315,7 @@ fun ExportBrokerContainer(
         modifier = Modifier
             .fillMaxWidth()
             .animateContentSize(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, contentColor = MaterialTheme.colorScheme.onSecondaryContainer),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, contentColor = MaterialTheme.colorScheme.onSurface),
         shape = RoundedCornerShape(24.dp),
         onClick = { expanded.value = if (!included) false else !expanded.value }
     ) {
@@ -394,7 +396,8 @@ fun ImportTopicContainer(topic: TopicConfiguration) {
                 topic.ignoreBedTime,
                 topic.notificationSoundLevel,
                 topic.notificationSoundText,
-                topic.payloadContent
+                topic.payloadContent,
+                topic.messageAge
             )
         }
     }
@@ -446,7 +449,8 @@ fun ExportTopicContainer(
                 topic.ignoreBedTime,
                 topic.notificationSoundLevel,
                 topic.notificationSoundText,
-                topic.payloadContent
+                topic.payloadContent,
+                topic.messageAge
             )
         }
     }
@@ -506,7 +510,8 @@ fun TopicInfoContainer(
     ignoreBedTime: Boolean,
     notificationSoundLevel: Double?,
     notificationSoundText: String?,
-    payloadContent: String?
+    payloadContent: String?,
+    messageAge: Int
 ) {
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
@@ -541,6 +546,11 @@ fun TopicInfoContainer(
             "Notification Body",
             payloadContent?.replaceFirst("b@", "")?.ifBlank { "Full Payload" } ?: "Empty",
             Icons.Filled.FilterAlt
+        )
+        ItemProperty(
+            "Message Age",
+            "${messageAge}s",
+            Icons.Filled.FolderCopy
         )
     }
 }

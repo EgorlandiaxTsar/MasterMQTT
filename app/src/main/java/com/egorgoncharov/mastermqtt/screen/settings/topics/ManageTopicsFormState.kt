@@ -45,7 +45,8 @@ data class ManageTopicsFormState(
     val notificationSound: FormFieldState<String> = FormFieldState(
         reference?.notificationSoundPath ?: ""
     ),
-    val notificationSoundLevel: FormFieldState<Double> = FormFieldState(reference?.notificationSoundLevel ?: 1.0)
+    val notificationSoundLevel: FormFieldState<Double> = FormFieldState(reference?.notificationSoundLevel ?: 1.0),
+    val messageAge: FormFieldState<Int?> = FormFieldState(reference?.messageAge ?: 0)
 ) : EntityManagingFormState<TopicEntity>() {
     override fun valid(): Boolean = listOf(broker, name, topic, qos, showPayload, binaryEncoding, payloadContent, highPriority, ignoreBedTime, ttsText, notificationSound, notificationSoundLevel).all { it.errorMsg == null }
 }

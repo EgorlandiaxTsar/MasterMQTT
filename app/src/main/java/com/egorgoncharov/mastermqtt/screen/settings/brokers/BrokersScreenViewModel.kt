@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.egorgoncharov.mastermqtt.Utils
 import com.egorgoncharov.mastermqtt.manager.mqtt.MqttConnection
 import com.egorgoncharov.mastermqtt.manager.mqtt.MqttManager
 import com.egorgoncharov.mastermqtt.model.dao.BrokerDao
@@ -134,8 +135,8 @@ class BrokersScreenViewModel(
     private fun handleKeepAliveIntervalChange(keepAliveInterval: String) = _manageBrokerFormState.update(
         { it.keepAliveInterval },
         if (keepAliveInterval.isBlank()) null else keepAliveInterval.toIntOrNull(),
-        { validateNumericalInput(keepAliveInterval, true, 1.0) }
-    ) { copy(keepAliveInterval = it.copy(value = it.value?.coerceIn(0, Int.MAX_VALUE - 1))) }
+        { validateNumericalInput(keepAliveInterval, true, 1.0, Utils.MAX_INPUT_NUMBER.toDouble()) }
+    ) { copy(keepAliveInterval = it.copy(value = it.value?.coerceIn(0, Utils.MAX_INPUT_NUMBER))) }
 
     private fun handleCleanStartChange(cleanStart: Boolean, updateLinkedFieldsErrors: Boolean = true) {
         _manageBrokerFormState.update(
@@ -158,14 +159,14 @@ class BrokersScreenViewModel(
     private fun handleReconnectRetriesChange(reconnectRetries: String) = _manageBrokerFormState.update(
         { it.reconnectAttempts },
         if (reconnectRetries.isBlank()) null else reconnectRetries.toIntOrNull(),
-        { validateNumericalInput(reconnectRetries, !manageBrokerFormState.value.infiniteReconnects.value, 0.0) }
-    ) { copy(reconnectAttempts = it.copy(value = it.value?.coerceIn(0, Int.MAX_VALUE - 1))) }
+        { validateNumericalInput(reconnectRetries, !manageBrokerFormState.value.infiniteReconnects.value, 0.0, Utils.MAX_INPUT_NUMBER.toDouble()) }
+    ) { copy(reconnectAttempts = it.copy(value = it.value?.coerceIn(0, Utils.MAX_INPUT_NUMBER))) }
 
     private fun handleReconnectIntervalChange(reconnectInterval: String) = _manageBrokerFormState.update(
         { it.reconnectInterval },
         if (reconnectInterval.isBlank()) null else reconnectInterval.toIntOrNull(),
-        { validateNumericalInput(reconnectInterval, true, 1.0) }
-    ) { copy(reconnectInterval = it.copy(value = it.value?.coerceIn(1, Int.MAX_VALUE - 1))) }
+        { validateNumericalInput(reconnectInterval, true, 1.0, Utils.MAX_INPUT_NUMBER.toDouble()) }
+    ) { copy(reconnectInterval = it.copy(value = it.value?.coerceIn(1, Utils.MAX_INPUT_NUMBER))) }
 
     private fun handleSessionExpiryIntervalChange(sessionExpiryInterval: String) = _manageBrokerFormState.update(
         { it.sessionExpiryInterval },
@@ -174,10 +175,11 @@ class BrokersScreenViewModel(
             validateNumericalInput(
                 sessionExpiryInterval,
                 !manageBrokerFormState.value.cleanStart.value,
-                1.0
+                1.0,
+                Utils.MAX_INPUT_NUMBER.toDouble()
             )
         }
-    ) { copy(sessionExpiryInterval = it.copy(value = it.value?.coerceIn(1, Int.MAX_VALUE - 1))) }
+    ) { copy(sessionExpiryInterval = it.copy(value = it.value?.coerceIn(1, Utils.MAX_INPUT_NUMBER))) }
 
     private fun saveBroker() {
         if (!manageBrokerFormState.value.valid()) return

@@ -20,6 +20,7 @@ sealed interface TopicsScreenEvent {
     data class NotificationSoundChanged(val notificationSound: String) : TopicsScreenEvent
     data class NotificationSoundLevelChanged(val notificationSoundLevel: Double) : TopicsScreenEvent
     object PlayNotificationSound : TopicsScreenEvent
+    data class MessageAgeChanged(val messageAge: String) : TopicsScreenEvent
     object TopicSaved : TopicsScreenEvent
 
     data class ToggleManageForm(val reference: TopicEntity?) : TopicsScreenEvent

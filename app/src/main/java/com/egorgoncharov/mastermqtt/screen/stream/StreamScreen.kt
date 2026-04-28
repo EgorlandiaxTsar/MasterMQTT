@@ -64,6 +64,7 @@ import androidx.navigation.NavHostController
 import com.egorgoncharov.mastermqtt.Utils
 import com.egorgoncharov.mastermqtt.manager.mqtt.MqttConnection
 import com.egorgoncharov.mastermqtt.model.entity.MessageEntity
+import com.egorgoncharov.mastermqtt.model.entity.SettingsProfileEntity
 import com.egorgoncharov.mastermqtt.model.entity.TopicEntity
 import com.egorgoncharov.mastermqtt.model.types.ConnectionType
 import com.egorgoncharov.mastermqtt.model.types.MQTTConnectionState
@@ -83,6 +84,7 @@ fun StreamScreen(vm: StreamScreenViewModel, navController: NavHostController) {
     val streamSources by vm.topics.collectAsStateWithLifecycle(emptyList())
     val brokers by vm.brokers.collectAsStateWithLifecycle(emptyList())
     val messages by vm.messages.collectAsStateWithLifecycle(emptyList())
+    val mainSettingsProfile by vm.mainSettingProfile.collectAsStateWithLifecycle(SettingsProfileEntity("", 0, false))
 
     DisposableEffect(Unit) { onDispose { vm.onEvent(StreamScreenEvent.SelectedStreamChanged(null)) } }
     if (streamSourceState.selected != null) {
@@ -97,7 +99,7 @@ fun StreamScreen(vm: StreamScreenViewModel, navController: NavHostController) {
             StreamSourceChat(vm)
         }
     }
-    StatusTopBar(navController, connections)
+    StatusTopBar(navController, mainSettingsProfile!!, connections)
     Spacer(Modifier.height(20.dp))
     LazyColumn(modifier = Modifier.fillMaxWidth()) {
         brokers.forEach { connection ->
@@ -122,7 +124,7 @@ fun StreamScreen(vm: StreamScreenViewModel, navController: NavHostController) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatusTopBar(navController: NavHostController, connectionStates: Map<String, MqttConnection>) {
+fun StatusTopBar(navController: NavHostController, settingsProfile: SettingsProfileEntity, connectionStates: Map<String, MqttConnection>) {
     val connectedCount = connectionStates.values.filter { it.state == MQTTConnectionState.CONNECTED }.size
     var showSettingsScreen by remember { mutableStateOf(false) }
     var showConnectionsQuickView by remember { mutableStateOf(false) }
@@ -149,11 +151,11 @@ fun StatusTopBar(navController: NavHostController, connectionStates: Map<String,
         Spacer(Modifier.weight(1f))
         Row(verticalAlignment = Alignment.CenterVertically) {
             /* TODO: Add safety button checks here */
-            SafetyButton(onConfirmedClick = { showSettingsScreen = true }) {
+            SafetyButton(interval = if (settingsProfile.settingsSafetyButtonEnabled) 750 else 1, onConfirmedClick = { showSettingsScreen = true }) {
                 Icon(Icons.Filled.Settings, contentDescription = "Settings")
             }
             Spacer(Modifier.width(5.dp))
-            SafetyButton(onConfirmedClick = { showConnectionsQuickView = true }) {
+            SafetyButton(interval = if (settingsProfile.settingsSafetyButtonEnabled) 750 else 1, onConfirmedClick = { showConnectionsQuickView = true }) {
                 Row(
                     modifier = Modifier
                         .height(32.dp)
@@ -322,12 +324,13 @@ fun StreamSourceChatHeader(
             }
             Spacer(Modifier.height(3.dp))
             Row(
+                modifier = Modifier.padding(start = 29.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(5.dp)
             ) {
                 Box(
                     Modifier
-                        .size(10.dp)
+                        .size(14.dp)
                         .background(color = if (connection?.state == MQTTConnectionState.CONNECTED) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(100))
                 ) {}
                 Text(connection?.broker?.name ?: "...", style = MaterialTheme.typography.labelLarge)

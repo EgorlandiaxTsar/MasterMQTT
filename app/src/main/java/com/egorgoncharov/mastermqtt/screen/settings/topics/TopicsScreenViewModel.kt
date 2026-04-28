@@ -5,9 +5,11 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.egorgoncharov.mastermqtt.Utils
 import com.egorgoncharov.mastermqtt.manager.SoundManager
 import com.egorgoncharov.mastermqtt.model.dao.BrokerDao
 import com.egorgoncharov.mastermqtt.model.dao.MessageDao
+import com.egorgoncharov.mastermqtt.model.dao.SettingsProfileDao
 import com.egorgoncharov.mastermqtt.model.dao.TopicDao
 import com.egorgoncharov.mastermqtt.model.entity.BrokerEntity
 import com.egorgoncharov.mastermqtt.model.entity.TopicEntity
@@ -26,13 +28,14 @@ class TopicsScreenViewModel(
     private val brokerDao: BrokerDao,
     private val topicDao: TopicDao,
     private val messageDao: MessageDao,
+    private val settingsProfileDao: SettingsProfileDao,
     private val soundManager: SoundManager
 ) :
     ViewModel() {
     companion object {
-        fun Factory(brokerDao: BrokerDao, topicDao: TopicDao, messageDao: MessageDao, soundManager: SoundManager): ViewModelProvider.Factory =
+        fun Factory(brokerDao: BrokerDao, topicDao: TopicDao, messageDao: MessageDao, settingsProfileDao: SettingsProfileDao, soundManager: SoundManager): ViewModelProvider.Factory =
             viewModelFactory {
-                initializer { TopicsScreenViewModel(brokerDao, topicDao, messageDao, soundManager) }
+                initializer { TopicsScreenViewModel(brokerDao, topicDao, messageDao, settingsProfileDao, soundManager) }
             }
     }
 
@@ -57,6 +60,7 @@ class TopicsScreenViewModel(
             is TopicsScreenEvent.NotificationSoundChanged -> handleNotificationSoundChange(event.notificationSound)
             is TopicsScreenEvent.NotificationSoundLevelChanged -> handleNotificationSoundLevelChange(event.notificationSoundLevel)
             is TopicsScreenEvent.PlayNotificationSound -> playNotificationSound()
+            is TopicsScreenEvent.MessageAgeChanged -> handleMessageAgeChange(event.messageAge)
             is TopicsScreenEvent.TopicSaved -> saveTopic()
             is TopicsScreenEvent.ToggleManageForm -> toggleManageForm(event.reference)
             is TopicsScreenEvent.ToggleTopic -> toggleTopic(event.topic)
@@ -139,11 +143,10 @@ class TopicsScreenViewModel(
     private fun handleTTSTextChange(ttsText: String) = _manageTopicsFormState.update(
         { it.ttsText },
         ttsText,
-        { if (ttsText.length <= 32) null else "TTS text too long" }
+        { if (ttsText.length <= 512) null else "TTS text too long" }
     ) { copy(ttsText = it) }
 
-    private fun handleNotificationSoundChange(notificationSound: String) =
-        _manageTopicsFormState.update(
+    private fun handleNotificationSoundChange(notificationSound: String) = _manageTopicsFormState.update(
             { it.notificationSound },
             notificationSound,
             { null }
@@ -158,11 +161,19 @@ class TopicsScreenViewModel(
     private fun playNotificationSound() {
         try {
             if (manageTopicsFormState.value.notificationSound.value.isNotBlank()) {
-                soundManager.playSound(manageTopicsFormState.value.notificationSound.value, manageTopicsFormState.value.notificationSoundLevel.value, true)
+                viewModelScope.launch {
+                    soundManager.playSound(manageTopicsFormState.value.notificationSound.value, manageTopicsFormState.value.notificationSoundLevel.value, true)
+                }
             }
         } catch (_: Exception) {
         }
     }
+
+    private fun handleMessageAgeChange(messageAge: String) = _manageTopicsFormState.update(
+        { it.messageAge },
+        if (messageAge.isBlank()) null else messageAge.toIntOrNull(),
+        { validateNumericalInput(messageAge, true, 0.0, Utils.MAX_INPUT_NUMBER.toDouble()) }
+    ) { copy(messageAge = it.copy(value = it.value?.coerceIn(0, Utils.MAX_INPUT_NUMBER))) }
 
     private fun saveTopic() {
         if (!manageTopicsFormState.value.valid()) return
@@ -182,6 +193,7 @@ class TopicsScreenViewModel(
                     notificationSoundText = state.ttsText.value.ifBlank { null },
                     notificationSoundPath = state.notificationSound.value.ifBlank { null },
                     notificationSoundLevel = if (state.notificationSound.value.isBlank()) null else state.notificationSoundLevel.value,
+                    messageAge = state.messageAge.value!!,
                     displayIndex = 0,
                     lastOpened = System.currentTimeMillis()
                 )
@@ -203,6 +215,12 @@ class TopicsScreenViewModel(
             viewModelScope.launch {
                 handleBrokerChange(
                     brokerDao.findById(reference.brokerId) ?: return@launch
+                )
+            }
+        } else {
+            viewModelScope.launch {
+                handleMessageAgeChange(
+                    settingsProfileDao.getMainSettingsProfile()?.defaultMessageAge?.toString() ?: ""
                 )
             }
         }
@@ -227,6 +245,7 @@ class TopicsScreenViewModel(
         handleTTSTextChange(manageTopicsFormState.value.ttsText.value)
         handleNotificationSoundChange(manageTopicsFormState.value.notificationSound.value)
         handleNotificationSoundLevelChange(manageTopicsFormState.value.notificationSoundLevel.value)
+        handleMessageAgeChange(manageTopicsFormState.value.messageAge.value.toString())
     }
 
     private fun toggleTopic(topic: TopicEntity) {

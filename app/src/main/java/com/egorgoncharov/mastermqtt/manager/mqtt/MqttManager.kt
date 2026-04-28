@@ -267,7 +267,7 @@ open class MqttManager(
         )
         messageDao.save(notification)
         notificationManager.show(broker, topic, processedDescription)
-        soundManager.alert(topic)
+        soundManager.alert(topic, String(payload))
     }
 
     protected fun processPayload(payload: ByteArray, pattern: String?): Map<String, String?> {

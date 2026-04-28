@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.egorgoncharov.mastermqtt.manager.mqtt.MqttManager
 import com.egorgoncharov.mastermqtt.model.dao.BrokerDao
 import com.egorgoncharov.mastermqtt.model.dao.MessageDao
+import com.egorgoncharov.mastermqtt.model.dao.SettingsProfileDao
 import com.egorgoncharov.mastermqtt.model.dao.TopicDao
 import com.egorgoncharov.mastermqtt.model.entity.TopicEntity
 import com.egorgoncharov.mastermqtt.ui.components.ConfirmationWindowState
@@ -23,6 +24,7 @@ class StreamScreenViewModel(
     brokerDao: BrokerDao,
     private val topicDao: TopicDao,
     private val messageDao: MessageDao,
+    settingsProfileDao: SettingsProfileDao,
     mqttManager: MqttManager
 ) : ViewModel() {
     companion object {
@@ -30,10 +32,11 @@ class StreamScreenViewModel(
             brokerDao: BrokerDao,
             topicDao: TopicDao,
             messageDao: MessageDao,
+            settingsProfileDao: SettingsProfileDao,
             mqttManager: MqttManager
         ): ViewModelProvider.Factory =
             viewModelFactory {
-                initializer { StreamScreenViewModel(brokerDao, topicDao, messageDao, mqttManager) }
+                initializer { StreamScreenViewModel(brokerDao, topicDao, messageDao, settingsProfileDao, mqttManager) }
             }
     }
 
@@ -49,6 +52,7 @@ class StreamScreenViewModel(
     val streamFilterState = _streamMessagesFilterState.asStateFlow()
     val streamClearDialogState = _streamClearDialogState.asStateFlow()
     val streamChatState = _streamChatState.asStateFlow()
+    val mainSettingProfile = settingsProfileDao.streamMainSettingsProfile()
     val connections = mqttManager.clientsFlow
 
     fun onEvent(event: StreamScreenEvent) {

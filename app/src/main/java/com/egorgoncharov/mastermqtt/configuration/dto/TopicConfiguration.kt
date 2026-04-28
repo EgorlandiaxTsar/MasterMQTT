@@ -15,5 +15,6 @@ data class TopicConfiguration(
     @SerialName("ignoreBedTime") val ignoreBedTime: Boolean,
     @SerialName("notificationSoundText") val notificationSoundText: String?,
     @SerialName("notificationSoundPath") val notificationSoundPath: String?,
-    @SerialName("notificationSoundLevel") val notificationSoundLevel: Double?
+    @SerialName("notificationSoundLevel") val notificationSoundLevel: Double?,
+    @SerialName("messageAge") val messageAge: Int
 )

@@ -30,4 +30,16 @@ interface MessageDao : BaseDao<MessageEntity> {
 
     @Query("DELETE FROM messages WHERE topicId IN (SELECT id FROM topics WHERE id = :topicId)")
     suspend fun deleteByTopic(topicId: String)
+
+    @Query(
+        """
+    DELETE FROM messages 
+    WHERE EXISTS (
+        SELECT 1 FROM topics 
+        WHERE topics.id = messages.topicId 
+        AND (messages.date + (topics.messageAge * 1000)) < :currentTime
+    )
+    """
+    )
+    suspend fun deleteOldMessages(currentTime: Long = System.currentTimeMillis())
 }

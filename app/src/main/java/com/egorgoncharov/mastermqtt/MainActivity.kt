@@ -181,7 +181,7 @@ private fun AppNavHost(
                 Column(Modifier.fillMaxSize()) {
                     TopicsScreen(
                         vm = viewModel(
-                            factory = TopicsScreenViewModel.Factory(brokerDao, topicDao, messageDao, soundManager)
+                            factory = TopicsScreenViewModel.Factory(brokerDao, topicDao, messageDao, settingsProfileDao, soundManager)
                         ),
                         navController
                     )
@@ -206,7 +206,7 @@ private fun AppNavHost(
             Scaffold(Modifier.padding(20.dp)) {
                 Column(Modifier.fillMaxSize()) {
                     val topicId = backStackEntry.arguments?.getString("topicId")
-                    val vm = viewModel<StreamScreenViewModel>(factory = StreamScreenViewModel.Factory(brokerDao, topicDao, messageDao, mqttManager))
+                    val vm = viewModel<StreamScreenViewModel>(factory = StreamScreenViewModel.Factory(brokerDao, topicDao, messageDao, settingsProfileDao, mqttManager))
                     if (topicId != null) {
                         LaunchedEffect(Unit) {
                             if (!vm.isDeepLinkBound()) {

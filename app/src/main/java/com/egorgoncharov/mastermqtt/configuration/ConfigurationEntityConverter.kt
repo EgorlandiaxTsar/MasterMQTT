@@ -58,7 +58,8 @@ class ConfigurationEntityConverter(private val brokerDao: BrokerDao, private val
             ignoreBedTime = topic.ignoreBedTime,
             notificationSoundText = topic.notificationSoundText,
             notificationSoundPath = topic.notificationSoundPath,
-            notificationSoundLevel = topic.notificationSoundLevel
+            notificationSoundLevel = topic.notificationSoundLevel,
+            messageAge = topic.messageAge
         )
     }
 
@@ -81,6 +82,7 @@ class ConfigurationEntityConverter(private val brokerDao: BrokerDao, private val
             notificationSoundText = topicConfiguration.notificationSoundText,
             notificationSoundPath = topicConfiguration.notificationSoundPath,
             notificationSoundLevel = topicConfiguration.notificationSoundLevel,
+            messageAge = topicConfiguration.messageAge,
             displayIndex = 0,
             lastOpened = System.currentTimeMillis()
         )
