@@ -14,6 +14,7 @@ import com.egorgoncharov.mastermqtt.model.dao.TopicDao
 import com.egorgoncharov.mastermqtt.model.entity.BrokerEntity
 import com.egorgoncharov.mastermqtt.model.entity.TopicEntity
 import com.egorgoncharov.mastermqtt.ui.components.ConfirmationWindowState
+import com.egorgoncharov.mastermqtt.ui.components.isValidMqttTopic
 import com.egorgoncharov.mastermqtt.ui.components.jsonPathRegex
 import com.egorgoncharov.mastermqtt.ui.components.nameRegex
 import com.egorgoncharov.mastermqtt.ui.components.update
@@ -88,7 +89,7 @@ class TopicsScreenViewModel(
         _manageTopicsFormState.update(
             { it.topic },
             topic,
-            { if (topic.isNotBlank()) null else "Topic is required" /* TODO: Should probably add an MQTT topic check regex */ }
+            { if (isValidMqttTopic(topic)) null else "Invalid topic format" }
         ) { copy(topic = it) }
         checkExists()
     }

@@ -67,7 +67,7 @@ import com.egorgoncharov.mastermqtt.model.entity.MessageEntity
 import com.egorgoncharov.mastermqtt.model.entity.SettingsProfileEntity
 import com.egorgoncharov.mastermqtt.model.entity.TopicEntity
 import com.egorgoncharov.mastermqtt.model.types.ConnectionType
-import com.egorgoncharov.mastermqtt.model.types.MQTTConnectionState
+import com.egorgoncharov.mastermqtt.model.types.MqttConnectionState
 import com.egorgoncharov.mastermqtt.screen.settings.SettingsScreen
 import com.egorgoncharov.mastermqtt.ui.components.DialogWindow
 import com.egorgoncharov.mastermqtt.ui.components.Empty
@@ -84,7 +84,7 @@ fun StreamScreen(vm: StreamScreenViewModel, navController: NavHostController) {
     val streamSources by vm.topics.collectAsStateWithLifecycle(emptyList())
     val brokers by vm.brokers.collectAsStateWithLifecycle(emptyList())
     val messages by vm.messages.collectAsStateWithLifecycle(emptyList())
-    val mainSettingsProfile by vm.mainSettingProfile.collectAsStateWithLifecycle(SettingsProfileEntity("", 0, false))
+    val mainSettingsProfile by vm.mainSettingProfile.collectAsStateWithLifecycle(SettingsProfileEntity.DUMMY)
 
     DisposableEffect(Unit) { onDispose { vm.onEvent(StreamScreenEvent.SelectedStreamChanged(null)) } }
     if (streamSourceState.selected != null) {
@@ -125,7 +125,7 @@ fun StreamScreen(vm: StreamScreenViewModel, navController: NavHostController) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatusTopBar(navController: NavHostController, settingsProfile: SettingsProfileEntity, connectionStates: Map<String, MqttConnection>) {
-    val connectedCount = connectionStates.values.filter { it.state == MQTTConnectionState.CONNECTED }.size
+    val connectedCount = connectionStates.values.filter { it.state == MqttConnectionState.CONNECTED }.size
     var showSettingsScreen by remember { mutableStateOf(false) }
     var showConnectionsQuickView by remember { mutableStateOf(false) }
     val containerColor = if (connectedCount > 0) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
@@ -331,7 +331,7 @@ fun StreamSourceChatHeader(
                 Box(
                     Modifier
                         .size(14.dp)
-                        .background(color = if (connection?.state == MQTTConnectionState.CONNECTED) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(100))
+                        .background(color = if (connection?.state == MqttConnectionState.CONNECTED) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(100))
                 ) {}
                 Text(connection?.broker?.name ?: "...", style = MaterialTheme.typography.labelLarge)
             }
@@ -452,22 +452,22 @@ fun ConnectionsQuickView(connectionStates: Map<String, MqttConnection>) {
                         )
                     }
                     val icon = when (connection.state) {
-                        MQTTConnectionState.CONNECTED -> Icons.Filled.WifiTethering
-                        MQTTConnectionState.DISCONNECTED -> Icons.Filled.WifiTetheringOff
-                        MQTTConnectionState.INTERMEDIATE -> Icons.Filled.Timer
-                        MQTTConnectionState.DISCONNECTED_FAILED -> Icons.Filled.WifiTetheringError
+                        MqttConnectionState.CONNECTED -> Icons.Filled.WifiTethering
+                        MqttConnectionState.DISCONNECTED -> Icons.Filled.WifiTetheringOff
+                        MqttConnectionState.INTERMEDIATE -> Icons.Filled.Timer
+                        MqttConnectionState.DISCONNECTED_FAILED -> Icons.Filled.WifiTetheringError
                     }
                     val backgroundColor = when (connection.state) {
-                        MQTTConnectionState.CONNECTED -> MaterialTheme.colorScheme.primary
-                        MQTTConnectionState.DISCONNECTED -> MaterialTheme.colorScheme.surfaceVariant
-                        MQTTConnectionState.INTERMEDIATE -> MaterialTheme.colorScheme.secondary
-                        MQTTConnectionState.DISCONNECTED_FAILED -> MaterialTheme.colorScheme.error
+                        MqttConnectionState.CONNECTED -> MaterialTheme.colorScheme.primary
+                        MqttConnectionState.DISCONNECTED -> MaterialTheme.colorScheme.surfaceVariant
+                        MqttConnectionState.INTERMEDIATE -> MaterialTheme.colorScheme.secondary
+                        MqttConnectionState.DISCONNECTED_FAILED -> MaterialTheme.colorScheme.error
                     }
                     val contentColor = when (connection.state) {
-                        MQTTConnectionState.CONNECTED -> MaterialTheme.colorScheme.onPrimary
-                        MQTTConnectionState.DISCONNECTED -> MaterialTheme.colorScheme.onSurfaceVariant
-                        MQTTConnectionState.INTERMEDIATE -> MaterialTheme.colorScheme.onSecondary
-                        MQTTConnectionState.DISCONNECTED_FAILED -> MaterialTheme.colorScheme.onError
+                        MqttConnectionState.CONNECTED -> MaterialTheme.colorScheme.onPrimary
+                        MqttConnectionState.DISCONNECTED -> MaterialTheme.colorScheme.onSurfaceVariant
+                        MqttConnectionState.INTERMEDIATE -> MaterialTheme.colorScheme.onSecondary
+                        MqttConnectionState.DISCONNECTED_FAILED -> MaterialTheme.colorScheme.onError
                     }
                     Box(
                         modifier = Modifier

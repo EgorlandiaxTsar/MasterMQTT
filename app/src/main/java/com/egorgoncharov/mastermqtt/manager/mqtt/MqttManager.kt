@@ -12,7 +12,7 @@ import com.egorgoncharov.mastermqtt.model.entity.BrokerEntity
 import com.egorgoncharov.mastermqtt.model.entity.MessageEntity
 import com.egorgoncharov.mastermqtt.model.entity.TopicEntity
 import com.egorgoncharov.mastermqtt.model.types.ConnectionType
-import com.egorgoncharov.mastermqtt.model.types.MQTTConnectionState
+import com.egorgoncharov.mastermqtt.model.types.MqttConnectionState
 import com.hivemq.client.mqtt.datatypes.MqttQos
 import com.hivemq.client.mqtt.lifecycle.MqttDisconnectSource
 import com.hivemq.client.mqtt.mqtt5.Mqtt5AsyncClient
@@ -73,7 +73,7 @@ open class MqttManager(
                 (current + (broker.id to MqttConnection(
                     broker,
                     client,
-                    MQTTConnectionState.DISCONNECTED
+                    MqttConnectionState.DISCONNECTED
                 ))).toMutableMap()
             }
             if (connectInstantly) connect(broker)
@@ -92,7 +92,7 @@ open class MqttManager(
             clients.update { (it - broker.id).toMutableMap() }
             subscriptionsSyncJobs.remove(broker.id)?.cancel()
         }
-        if (clients.value[broker.id]?.state == MQTTConnectionState.CONNECTED) {
+        if (clients.value[broker.id]?.state == MqttConnectionState.CONNECTED) {
             disconnect(broker, updateState = false) { remove(); then?.invoke() }
         } else {
             remove()
@@ -102,8 +102,8 @@ open class MqttManager(
 
     fun connect(broker: BrokerEntity, then: (() -> Unit)? = null) {
         if (!clients.value.containsKey(broker.id)) return
-        if (clients.value[broker.id]?.state == MQTTConnectionState.CONNECTED || clients.value[broker.id]?.state == MQTTConnectionState.INTERMEDIATE) return
-        updateClient(broker.id) { it.copy(state = MQTTConnectionState.INTERMEDIATE) }
+        if (clients.value[broker.id]?.state == MqttConnectionState.CONNECTED || clients.value[broker.id]?.state == MqttConnectionState.INTERMEDIATE) return
+        updateClient(broker.id) { it.copy(state = MqttConnectionState.INTERMEDIATE) }
         clients.value[broker.id]!!.client.connectWith()
             .keepAlive(1.coerceAtLeast(broker.keepAliveInterval))
             .restrictions()
@@ -113,7 +113,7 @@ open class MqttManager(
             .cleanStart(broker.cleanStart)
             .send()
             .handle { _, throwable ->
-                updateClient(broker.id) { it.copy(state = if (throwable == null) MQTTConnectionState.CONNECTED else MQTTConnectionState.DISCONNECTED_FAILED) }
+                updateClient(broker.id) { it.copy(state = if (throwable == null) MqttConnectionState.CONNECTED else MqttConnectionState.DISCONNECTED_FAILED) }
                 if (throwable == null && !subscriptionsSyncJobs.containsKey(broker.id)) subscriptionsSyncJobs[broker.id] =
                     syncSubscriptions(clients.value[broker.id]!!)
                 if (then != null) then()
@@ -123,9 +123,12 @@ open class MqttManager(
 
     fun disconnect(broker: BrokerEntity, updateState: Boolean = true, then: (() -> Unit)? = null) {
         if (!clients.value.containsKey(broker.id)) return
-        if (clients.value[broker.id]?.state != MQTTConnectionState.CONNECTED || clients.value[broker.id]?.state == MQTTConnectionState.INTERMEDIATE) return
-        clients.value[broker.id]?.client?.disconnect()?.thenAccept { if (then != null) then() }
-        if (broker.connected && updateState) scope.launch { brokerDao.save(broker.copy(connected = false)) }
+        val connection = clients.value[broker.id]!!
+        if (connection.state != MqttConnectionState.CONNECTED) return
+        connection.client.disconnect().thenAccept { if (then != null) then() }
+        if (broker.connected && updateState) {
+            scope.launch { brokerDao.save(broker.copy(connected = false)) }
+        }
     }
 
     @SuppressLint("CheckResult")
@@ -144,18 +147,17 @@ open class MqttManager(
             .maxDelay(1.coerceAtLeast(broker.reconnectInterval).toLong(), TimeUnit.SECONDS)
             .applyAutomaticReconnect()
             .addDisconnectedListener { context ->
-                when (context.source) {
-                    MqttDisconnectSource.USER -> {
-                        updateClient(broker.id) { it.copy(state = MQTTConnectionState.DISCONNECTED) }
+                when {
+                    context.source == MqttDisconnectSource.USER -> {
+                        updateClient(broker.id) { it.copy(state = MqttConnectionState.DISCONNECTED) }
                         context.reconnector.reconnect(false)
                     }
-
                     else -> {
                         retryCount++
                         if (broker.reconnectAttempts == null || retryCount <= broker.reconnectAttempts) {
                             context.reconnector.reconnect(true)
                         } else {
-                            updateClient(broker.id) { it.copy(state = MQTTConnectionState.DISCONNECTED_FAILED) }
+                            updateClient(broker.id) { it.copy(state = MqttConnectionState.DISCONNECTED_FAILED) }
                             context.reconnector.reconnect(false)
                             retryCount = 0
                         }
@@ -227,7 +229,7 @@ open class MqttManager(
                     val configChanged = existing.broker.copy(connected = broker.connected) != broker
                     val statusChanged = existing.broker.connected != broker.connected
                     if (configChanged) {
-                        val wasActive = existing.state == MQTTConnectionState.CONNECTED || existing.state == MQTTConnectionState.INTERMEDIATE
+                        val wasActive = existing.state == MqttConnectionState.CONNECTED || existing.state == MqttConnectionState.INTERMEDIATE
                         register(broker, broker.connected || wasActive)
                     } else if (statusChanged) {
                         if (broker.connected) connect(broker) else disconnect(broker)

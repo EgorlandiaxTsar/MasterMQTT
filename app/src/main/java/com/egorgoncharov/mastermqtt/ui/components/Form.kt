@@ -20,6 +20,7 @@ val nameRegex = """^[A-Za-z0-9\u0400-\u04FF_\-,./*+\[\]{}()?!@#&]{3,32}$""".toRe
 val ipRegex = "^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}$".toRegex()
 val hostRegex = """^([a-z0-9]+(-[a-z0-9]+)*\.)+[a-z]{2,}$""".toRegex(RegexOption.IGNORE_CASE)
 val jsonPathRegex = """([a-zA-Z_]\w*(?:\[\d+])?(?:\.[a-zA-Z_]\w*(?:\[\d+])?)*)""".toRegex(RegexOption.IGNORE_CASE)
+val mqttRegex = """^(?:#$|(?:(?:[^+#\u0000]+|(?<=/)\+|^\+)(?:/|$))*(?:[^+#\u0000]+|(?<=/)\+|^\+|#)?)$""".toRegex()
 
 interface FormState {
     fun valid(): Boolean
@@ -39,6 +40,8 @@ data class FormFieldState<T>(
     val value: T,
     val errorMsg: String? = null,
 )
+
+fun isValidMqttTopic(topic: String): Boolean = if (topic.isEmpty() || topic.length > 65535 || topic.contains('\u0000')) false else mqttRegex.matches(topic)
 
 @Composable
 fun FormIsland(title: String, content: @Composable ColumnScope.() -> Unit) {

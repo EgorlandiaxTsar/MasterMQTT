@@ -13,7 +13,7 @@ import com.egorgoncharov.mastermqtt.model.dao.MessageDao
 import com.egorgoncharov.mastermqtt.model.dao.TopicDao
 import com.egorgoncharov.mastermqtt.model.entity.BrokerEntity
 import com.egorgoncharov.mastermqtt.model.types.ConnectionType
-import com.egorgoncharov.mastermqtt.model.types.MQTTConnectionState
+import com.egorgoncharov.mastermqtt.model.types.MqttConnectionState
 import com.egorgoncharov.mastermqtt.ui.components.ConfirmationWindowState
 import com.egorgoncharov.mastermqtt.ui.components.hostRegex
 import com.egorgoncharov.mastermqtt.ui.components.ipRegex
@@ -251,7 +251,7 @@ class BrokersScreenViewModel(
     }
 
     private fun toggleConnection(connection: MqttConnection) {
-        if (connection.state == MQTTConnectionState.CONNECTED) mqttManager.disconnect(connection.broker)
+        if (connection.state == MqttConnectionState.CONNECTED) mqttManager.disconnect(connection.broker)
         else mqttManager.connect(connection.broker)
     }
 

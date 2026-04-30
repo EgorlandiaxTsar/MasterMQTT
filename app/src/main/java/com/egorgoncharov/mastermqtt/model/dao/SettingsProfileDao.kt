@@ -4,6 +4,8 @@ import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
 import com.egorgoncharov.mastermqtt.model.entity.SettingsProfileEntity
+import com.egorgoncharov.mastermqtt.model.types.TTSLanguage
+import com.egorgoncharov.mastermqtt.model.types.ThemeOption
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -33,6 +35,8 @@ interface SettingsProfileDao : BaseDao<SettingsProfileEntity> {
             save(
                 SettingsProfileEntity(
                     id = "main",
+                    ttsLanguage = TTSLanguage.RU,
+                    theme = ThemeOption.SYSTEM,
                     defaultMessageAge = 604800, // 7 days
                     settingsSafetyButtonEnabled = false
                 )

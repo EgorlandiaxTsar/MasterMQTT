@@ -5,6 +5,8 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.room.TypeConverter
 import com.egorgoncharov.mastermqtt.Utils
 import com.egorgoncharov.mastermqtt.model.types.ConnectionType
+import com.egorgoncharov.mastermqtt.model.types.TTSLanguage
+import com.egorgoncharov.mastermqtt.model.types.ThemeOption
 import kotlinx.serialization.json.Json
 
 class Converters {
@@ -41,4 +43,16 @@ class Converters {
     fun ulongFromLong(o: Long?): ULong {
         return o?.toULong()!!;
     }
+
+    @TypeConverter
+    fun ttsLanguageToString(o: TTSLanguage): String = Utils.fromEnum<TTSLanguage>(o)!!
+
+    @TypeConverter
+    fun ttsLanguageFromString(o: String): TTSLanguage = Utils.toEnum<TTSLanguage>(o)!!
+
+    @TypeConverter
+    fun themeOptionToString(o: ThemeOption): String = Utils.fromEnum<ThemeOption>(o)!!
+
+    @TypeConverter
+    fun themeOptionFromString(o: String): ThemeOption = Utils.toEnum<ThemeOption>(o)!!
 }

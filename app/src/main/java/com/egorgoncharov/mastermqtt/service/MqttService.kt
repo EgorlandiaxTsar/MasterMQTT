@@ -41,7 +41,7 @@ class MqttService : Service() {
             databaseManager.db!!.topicDao(),
             databaseManager.db!!.messageDao(),
             notificationManager,
-            SoundManager(applicationContext)
+            SoundManager(applicationContext, databaseManager.db!!.settingsProfilesDao())
         )
     }
 

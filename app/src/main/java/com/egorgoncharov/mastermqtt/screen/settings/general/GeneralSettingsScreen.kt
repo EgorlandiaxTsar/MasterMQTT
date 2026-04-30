@@ -39,7 +39,10 @@ import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -74,6 +77,8 @@ import com.egorgoncharov.mastermqtt.model.entity.BrokerEntity
 import com.egorgoncharov.mastermqtt.model.entity.SettingsProfileEntity
 import com.egorgoncharov.mastermqtt.model.entity.TopicEntity
 import com.egorgoncharov.mastermqtt.model.types.ConnectionType
+import com.egorgoncharov.mastermqtt.model.types.TTSLanguage
+import com.egorgoncharov.mastermqtt.model.types.ThemeOption
 import com.egorgoncharov.mastermqtt.ui.components.Empty
 import com.egorgoncharov.mastermqtt.ui.components.Error
 import com.egorgoncharov.mastermqtt.ui.components.FilePicker
@@ -83,7 +88,7 @@ import com.egorgoncharov.mastermqtt.ui.components.SettingsTopBar
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GeneralSettingsScreen(vm: GeneralSettingsScreenViewModel, navController: NavHostController) {
-    val settingsProfile by vm.mainSettingProfile.collectAsStateWithLifecycle(SettingsProfileEntity("", 0, false))
+    val settingsProfile by vm.mainSettingProfile.collectAsStateWithLifecycle(SettingsProfileEntity.DUMMY)
     val importFormState by vm.configurationImportFormState.collectAsStateWithLifecycle()
     val exportFormState by vm.configurationExportFormState.collectAsStateWithLifecycle()
 
@@ -101,18 +106,94 @@ fun GeneralSettingsScreen(vm: GeneralSettingsScreenViewModel, navController: Nav
         SettingsTopBar(navController, "General Settings")
         Spacer(Modifier.height(20.dp))
         UiSettingsSection(settingsProfile!!) { vm.onEvent(it) }
+        TTSSettingsSection(settingsProfile!!) { vm.onEvent(it) }
         StorageSettingsSection(settingsProfile!!) { vm.onEvent(it) }
         ConfigurationImportExportSettingsSection { vm.onEvent(it) }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UiSettingsSection(settingsProfile: SettingsProfileEntity, onEvent: (GeneralSettingsScreenEvent) -> Unit) {
+    var expandedThemeOptionSelector by remember { mutableStateOf(false) }
+
     Text("UI", style = MaterialTheme.typography.titleMedium)
+    Spacer(Modifier.height(10.dp))
+    ExposedDropdownMenuBox(
+        expanded = expandedThemeOptionSelector,
+        onExpandedChange = { expandedThemeOptionSelector = it }
+    ) {
+        OutlinedTextField(
+            value = settingsProfile.theme.label,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Application Theme") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedThemeOptionSelector) },
+            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None),
+            modifier = Modifier
+                .menuAnchor()
+                .fillMaxWidth()
+        )
+        ExposedDropdownMenu(
+            expanded = expandedThemeOptionSelector,
+            onDismissRequest = { expandedThemeOptionSelector = false }
+        ) {
+            ThemeOption.entries.forEach {
+                DropdownMenuItem(
+                    text = { Text(it.label) },
+                    onClick = {
+                        onEvent(GeneralSettingsScreenEvent.ThemeOptionChanged(it))
+                        expandedThemeOptionSelector = false
+                    }
+                )
+            }
+        }
+    }
+    Spacer(Modifier.height(5.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
         Switch(checked = settingsProfile.settingsSafetyButtonEnabled, onCheckedChange = { onEvent(GeneralSettingsScreenEvent.SafetyButtonEnabledChanged(it)) })
         Spacer(Modifier.width(10.dp))
         Text("Enable Top Bar Safety Buttons")
+    }
+    Spacer(Modifier.height(15.dp))
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TTSSettingsSection(settingsProfile: SettingsProfileEntity, onEvent: (GeneralSettingsScreenEvent) -> Unit) {
+    var expandedTTSLanguageSelector by remember { mutableStateOf(false) }
+
+    Text("TTS", style = MaterialTheme.typography.titleMedium)
+    Spacer(Modifier.height(10.dp))
+    ExposedDropdownMenuBox(
+        expanded = expandedTTSLanguageSelector,
+        onExpandedChange = { expandedTTSLanguageSelector = it }
+    ) {
+        OutlinedTextField(
+            value = settingsProfile.ttsLanguage.label,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("TTS Speaking Language") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedTTSLanguageSelector) },
+            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None),
+            modifier = Modifier
+                .menuAnchor()
+                .fillMaxWidth()
+        )
+        ExposedDropdownMenu(
+            expanded = expandedTTSLanguageSelector,
+            onDismissRequest = { expandedTTSLanguageSelector = false }
+        ) {
+            TTSLanguage.entries.forEach {
+                DropdownMenuItem(
+                    text = { Text(it.label) },
+                    onClick = {
+                        onEvent(GeneralSettingsScreenEvent.TTSLanguageChanged(it))
+                        expandedTTSLanguageSelector = false
+                    }
+                )
+            }
+        }
     }
     Spacer(Modifier.height(15.dp))
 }
@@ -583,7 +664,7 @@ fun SettingActionCard(title: String, icon: ImageVector, onClick: () -> Unit, con
         modifier = Modifier
             .fillMaxWidth()
             .height(60.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         shape = RoundedCornerShape(24.dp)
     ) {
         Column(Modifier.fillMaxSize()) {
@@ -597,7 +678,7 @@ fun SettingActionCard(title: String, icon: ImageVector, onClick: () -> Unit, con
                 Text(title, style = MaterialTheme.typography.labelLarge)
                 IconButton(
                     modifier = Modifier.size(32.dp),
-                    colors = IconButtonDefaults.iconButtonColors(containerColor = MaterialTheme.colorScheme.secondary, contentColor = MaterialTheme.colorScheme.onSecondary),
+                    colors = IconButtonDefaults.iconButtonColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer, contentColor = MaterialTheme.colorScheme.onTertiaryContainer),
                     onClick = { onClick() }
                 ) {
                     Icon(modifier = Modifier.size(16.dp), imageVector = icon, contentDescription = null)

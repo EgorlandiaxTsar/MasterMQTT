@@ -14,6 +14,8 @@ import com.egorgoncharov.mastermqtt.model.dao.SettingsProfileDao
 import com.egorgoncharov.mastermqtt.model.dao.TopicDao
 import com.egorgoncharov.mastermqtt.model.entity.BrokerEntity
 import com.egorgoncharov.mastermqtt.model.entity.TopicEntity
+import com.egorgoncharov.mastermqtt.model.types.TTSLanguage
+import com.egorgoncharov.mastermqtt.model.types.ThemeOption
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
@@ -60,6 +62,8 @@ class GeneralSettingsScreenViewModel(
     fun onEvent(event: GeneralSettingsScreenEvent) {
         when (event) {
             is GeneralSettingsScreenEvent.SafetyButtonEnabledChanged -> handleSafetyButtonEnabledChange(event.enabled)
+            is GeneralSettingsScreenEvent.ThemeOptionChanged -> handleThemeOptionChange(event.theme)
+            is GeneralSettingsScreenEvent.TTSLanguageChanged -> handleTTSLanguageChange(event.ttsLanguage)
             is GeneralSettingsScreenEvent.DefaultMessageAgeChanged -> handleDefaultMessageAgeChange(event.defaultMessageAge)
             is GeneralSettingsScreenEvent.ToggleConfigurationExportForm -> toggleConfigurationExportForm()
             is GeneralSettingsScreenEvent.ToggleExportBundleBroker -> toggleExportBundleBroker(event.broker)
@@ -73,8 +77,22 @@ class GeneralSettingsScreenViewModel(
 
     private fun handleSafetyButtonEnabledChange(enabled: Boolean) {
         viewModelScope.launch {
-            val mainSettingsProfile = settingsProfileDao.getMainSettingsProfile()
-            if (mainSettingsProfile != null) settingsProfileDao.save(mainSettingsProfile.copy(settingsSafetyButtonEnabled = enabled))
+            val mainSettingsProfile = settingsProfileDao.getMainSettingsProfile() ?: return@launch
+            settingsProfileDao.save(mainSettingsProfile.copy(settingsSafetyButtonEnabled = enabled))
+        }
+    }
+
+    private fun handleThemeOptionChange(theme: ThemeOption) {
+        viewModelScope.launch {
+            val mainSettingsProfile = settingsProfileDao.getMainSettingsProfile() ?: return@launch
+            settingsProfileDao.save(mainSettingsProfile.copy(theme = theme))
+        }
+    }
+
+    private fun handleTTSLanguageChange(ttsLanguage: TTSLanguage) {
+        viewModelScope.launch {
+            val mainSettingsProfile = settingsProfileDao.getMainSettingsProfile() ?: return@launch
+            settingsProfileDao.save(mainSettingsProfile.copy(ttsLanguage = ttsLanguage))
         }
     }
 

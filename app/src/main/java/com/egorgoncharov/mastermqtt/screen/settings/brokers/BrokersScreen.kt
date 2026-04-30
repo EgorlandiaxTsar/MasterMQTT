@@ -88,7 +88,7 @@ import com.egorgoncharov.mastermqtt.Utils
 import com.egorgoncharov.mastermqtt.manager.PermissionManager
 import com.egorgoncharov.mastermqtt.manager.mqtt.MqttConnection
 import com.egorgoncharov.mastermqtt.model.types.ConnectionType
-import com.egorgoncharov.mastermqtt.model.types.MQTTConnectionState
+import com.egorgoncharov.mastermqtt.model.types.MqttConnectionState
 import com.egorgoncharov.mastermqtt.ui.components.DialogWindow
 import com.egorgoncharov.mastermqtt.ui.components.Empty
 import com.egorgoncharov.mastermqtt.ui.components.Error
@@ -225,7 +225,7 @@ fun BrokerHead(
         val pass = if (passwordRevealed) connection.broker.authPassword!! else "*".repeat(connection.broker.authPassword!!.length)
         "${connection.broker.authUser}/$pass"
     }
-    val isConnected = connection.state == MQTTConnectionState.CONNECTED
+    val isConnected = connection.state == MqttConnectionState.CONNECTED
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -284,9 +284,9 @@ fun BrokerHead(
                     contentAlignment = Alignment.Center
                 ) {
                     val icon = when (connection.state) {
-                        MQTTConnectionState.DISCONNECTED -> Icons.Filled.WifiTetheringOff
-                        MQTTConnectionState.DISCONNECTED_FAILED -> Icons.Filled.WifiTetheringError
-                        MQTTConnectionState.CONNECTED -> Icons.Filled.WifiTethering
+                        MqttConnectionState.DISCONNECTED -> Icons.Filled.WifiTetheringOff
+                        MqttConnectionState.DISCONNECTED_FAILED -> Icons.Filled.WifiTetheringError
+                        MqttConnectionState.CONNECTED -> Icons.Filled.WifiTethering
                         else -> null
                     }
                     if (icon != null) {

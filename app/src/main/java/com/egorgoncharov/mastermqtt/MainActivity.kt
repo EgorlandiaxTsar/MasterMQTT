@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -46,6 +47,8 @@ import com.egorgoncharov.mastermqtt.model.dao.BrokerDao
 import com.egorgoncharov.mastermqtt.model.dao.MessageDao
 import com.egorgoncharov.mastermqtt.model.dao.SettingsProfileDao
 import com.egorgoncharov.mastermqtt.model.dao.TopicDao
+import com.egorgoncharov.mastermqtt.model.entity.SettingsProfileEntity
+import com.egorgoncharov.mastermqtt.model.types.ThemeOption
 import com.egorgoncharov.mastermqtt.screen.settings.SettingsScreen
 import com.egorgoncharov.mastermqtt.screen.settings.brokers.BrokersScreen
 import com.egorgoncharov.mastermqtt.screen.settings.brokers.BrokersScreenViewModel
@@ -90,8 +93,9 @@ class MainActivity : ComponentActivity() {
             val settingsProfileDao = dbManager.db!!.settingsProfilesDao()
             val configurationEntityConverter = ConfigurationEntityConverter(brokerDao, topicDao)
             val configurationManager = ConfigurationManager(applicationContext, brokerDao, topicDao, messageDao, configurationEntityConverter)
+            val settingsProfile by settingsProfileDao.streamMainSettingsProfile().collectAsStateWithLifecycle(initialValue = SettingsProfileEntity.DUMMY)
             LaunchedEffect(Unit) { settingsProfileDao.createMainSettingsProfileIfNotExists() }
-            AppTheme {
+            AppTheme(themeOption = settingsProfile?.theme ?: ThemeOption.SYSTEM) {
                 val navController = rememberNavController()
                 var showSettingsList by remember { mutableStateOf(false) }
                 Scaffold { innerPadding ->
@@ -104,7 +108,7 @@ class MainActivity : ComponentActivity() {
                             messageDao = messageDao,
                             settingsProfileDao = settingsProfileDao,
                             mqttManager = mqttManager,
-                            soundManager = SoundManager(applicationContext),
+                            soundManager = SoundManager(applicationContext, settingsProfileDao),
                             configurationManager = configurationManager,
                             configurationEntityConverter = configurationEntityConverter
                         )
