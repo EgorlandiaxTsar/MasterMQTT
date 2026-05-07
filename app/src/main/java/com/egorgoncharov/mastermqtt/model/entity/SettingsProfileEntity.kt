@@ -12,9 +12,10 @@ data class SettingsProfileEntity(
     @ColumnInfo("ttsLanguage") val ttsLanguage: TTSLanguage,
     @ColumnInfo("theme") val theme: ThemeOption,
     @ColumnInfo("defaultMessageAge") val defaultMessageAge: Int,
-    @ColumnInfo("settingsSafetyButtonEnabled") val settingsSafetyButtonEnabled: Boolean
+    @ColumnInfo("settingsSafetyButtonEnabled") val settingsSafetyButtonEnabled: Boolean,
+    @ColumnInfo("showTopicRouteInStream") val showTopicRouteInStream: Boolean
 ) {
     companion object {
-        val DUMMY: SettingsProfileEntity = SettingsProfileEntity("", TTSLanguage.EN, ThemeOption.SYSTEM, 0, false)
+        val DUMMY: SettingsProfileEntity = SettingsProfileEntity("", TTSLanguage.EN, ThemeOption.SYSTEM, 0, settingsSafetyButtonEnabled = false, showTopicRouteInStream = false)
     }
 }

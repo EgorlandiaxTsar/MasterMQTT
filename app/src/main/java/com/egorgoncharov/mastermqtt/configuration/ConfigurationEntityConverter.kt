@@ -14,8 +14,9 @@ class ConfigurationEntityConverter(private val brokerDao: BrokerDao, private val
             name = broker.name,
             url = broker.address(true),
             authentication = if (broker.authUser == null) null else "${broker.authUser}${Char(0x1F)}${broker.authPassword}",
-            clientId = broker.clientId,
+            clientId = UUID.randomUUID().toString().take(6), /* broker.clientId */
             keepAliveInterval = broker.keepAliveInterval,
+            alertWhenDisconnected = broker.alertWhenDisconnected,
             cleanStart = broker.cleanStart,
             reconnectAttempts = broker.reconnectAttempts,
             reconnectInterval = broker.reconnectInterval,
@@ -34,6 +35,7 @@ class ConfigurationEntityConverter(private val brokerDao: BrokerDao, private val
             authUser = brokerConfiguration.authenticationUser(),
             authPassword = brokerConfiguration.authenticationPassword(),
             connectionType = brokerConfiguration.connectionType(),
+            alertWhenDisconnected = brokerConfiguration.alertWhenDisconnected,
             clientId = brokerConfiguration.clientId,
             keepAliveInterval = brokerConfiguration.keepAliveInterval,
             cleanStart = brokerConfiguration.cleanStart,

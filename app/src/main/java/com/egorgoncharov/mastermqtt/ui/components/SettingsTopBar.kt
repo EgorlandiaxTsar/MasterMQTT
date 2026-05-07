@@ -1,5 +1,6 @@
 package com.egorgoncharov.mastermqtt.ui.components
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,6 +39,13 @@ fun SettingsTopBar(
     title: String,
     actions: SettingsTopBarScope.() -> Unit = {}
 ) {
+    BackHandler {
+        if (!navHostController.popBackStack()) {
+            navHostController.navigate(NavRoute.Stream.route) {
+                popUpTo(0)
+            }
+        }
+    }
     val scope = SettingsTopBarScope()
     scope.actions()
     Row(

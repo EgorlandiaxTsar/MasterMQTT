@@ -45,6 +45,7 @@ class StreamScreenViewModel(
     private val _streamChatState = MutableStateFlow(StreamChatState())
     private var readTrackingJob: Job? = null
     private var deepLinkBound = false
+    private var brokersViewBound = false
 
     val brokers = brokerDao.streamBrokers()
     val topics = topicDao.streamTopics()
@@ -65,10 +66,13 @@ class StreamScreenViewModel(
             is StreamScreenEvent.ToggleStreamClearDialog -> toggleStreamClearDialog()
             is StreamScreenEvent.StreamCleared -> clearStream()
             is StreamScreenEvent.DeepLinkBoundChanged -> handleDeepLinkBoundChange(event.deepLinkBound)
+            is StreamScreenEvent.BrokersViewBoundChanged -> handleBrokersViewBoundChange(event.brokersViewBound)
         }
     }
 
     fun isDeepLinkBound() = deepLinkBound
+
+    fun isBrokersViewBound() = brokersViewBound
 
     private fun handleMinDatetimeFilterChange(min: Long?) = _streamMessagesFilterState.update(
         { it.minDatetime },
@@ -131,5 +135,9 @@ class StreamScreenViewModel(
 
     private fun handleDeepLinkBoundChange(bounded: Boolean) {
         deepLinkBound = bounded
+    }
+
+    private fun handleBrokersViewBoundChange(bounded: Boolean) {
+        brokersViewBound = bounded
     }
 }

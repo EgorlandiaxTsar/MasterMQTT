@@ -97,7 +97,10 @@ fun GeneralSettingsScreen(vm: GeneralSettingsScreenViewModel, navController: Nav
             modifier = Modifier.fillMaxSize(),
             sheetState = rememberModalBottomSheetState(confirmValueChange = { it != SheetValue.Hidden }, skipPartiallyExpanded = true),
             dragHandle = { BottomSheetDefaults.DragHandle() },
-            onDismissRequest = {}
+            onDismissRequest = {
+                if (exportFormState.showExportForm) vm.onEvent(GeneralSettingsScreenEvent.ToggleConfigurationExportForm)
+                if (importFormState.showImportForm) vm.onEvent(GeneralSettingsScreenEvent.ToggleConfigurationImportForm)
+            }
         ) {
             if (importFormState.showImportForm) ImportForm(vm) else ExportForm(vm)
         }
@@ -154,6 +157,12 @@ fun UiSettingsSection(settingsProfile: SettingsProfileEntity, onEvent: (GeneralS
         Switch(checked = settingsProfile.settingsSafetyButtonEnabled, onCheckedChange = { onEvent(GeneralSettingsScreenEvent.SafetyButtonEnabledChanged(it)) })
         Spacer(Modifier.width(10.dp))
         Text("Enable Top Bar Safety Buttons")
+    }
+    Spacer(Modifier.height(5.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Switch(checked = settingsProfile.showTopicRouteInStream, onCheckedChange = { onEvent(GeneralSettingsScreenEvent.ShowTopicRouteInStreamChanged(it)) })
+        Spacer(Modifier.width(10.dp))
+        Text("Show Topic Route In Stream")
     }
     Spacer(Modifier.height(15.dp))
 }
@@ -362,6 +371,7 @@ fun ImportBrokerContainer(broker: BrokerConfiguration) {
             BrokerInfoContainer(
                 broker.clientId,
                 broker.keepAliveInterval,
+                broker.alertWhenDisconnected,
                 broker.cleanStart,
                 broker.reconnectAttempts,
                 broker.reconnectInterval,
@@ -432,6 +442,7 @@ fun ExportBrokerContainer(
             BrokerInfoContainer(
                 broker.clientId,
                 broker.keepAliveInterval,
+                broker.alertWhenDisconnected,
                 broker.cleanStart,
                 broker.reconnectAttempts,
                 broker.reconnectInterval,
@@ -542,6 +553,7 @@ fun ExportTopicContainer(
 fun BrokerInfoContainer(
     clientId: String,
     keepAliveInterval: Int,
+    alertWhenDisconnected: Boolean,
     cleanStart: Boolean,
     reconnectAttempts: Int?,
     reconnectInterval: Int,
@@ -559,6 +571,11 @@ fun BrokerInfoContainer(
             "Keep Alive Interval",
             "${keepAliveInterval}s",
             Icons.Filled.MonitorHeart
+        )
+        ItemProperty(
+            "Alert When Disconnected",
+            if (alertWhenDisconnected) "Yes" else "No",
+            Icons.Filled.CleaningServices
         )
         ItemProperty(
             "Clean Start",

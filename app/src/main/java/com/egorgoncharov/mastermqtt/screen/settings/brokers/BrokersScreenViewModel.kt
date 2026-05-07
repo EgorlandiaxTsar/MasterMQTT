@@ -61,11 +61,12 @@ class BrokersScreenViewModel(
             )
 
             is BrokersScreenEvent.ConnectionTypeChanged -> handleConnectionTypeChange(event.connectionType)
+            is BrokersScreenEvent.AlertWhenDisconnectedChanged -> handleAlertWhenDisconnectedChanged(event.alertWhenDisconnected)
             is BrokersScreenEvent.ClientIdChanged -> handleClientIdChange(event.clientId)
             is BrokersScreenEvent.KeepAliveIntervalChanged -> handleKeepAliveIntervalChange(event.keepAliveInterval)
             is BrokersScreenEvent.CleanStartChanged -> handleCleanStartChange(event.cleanStart)
             is BrokersScreenEvent.InfiniteReconnectsChanged -> handleInfiniteReconnectsChange(event.infiniteReconnects)
-            is BrokersScreenEvent.ReconnectAttemptsChanged -> handleReconnectRetriesChange(event.reconnectAttempts)
+            is BrokersScreenEvent.ReconnectAttemptsChanged -> handleReconnectAttemptsChange(event.reconnectAttempts)
             is BrokersScreenEvent.ReconnectIntervalChanged -> handleReconnectIntervalChange(event.reconnectInterval)
             is BrokersScreenEvent.SessionExpiryIntervalChanged -> handleSessionExpiryIntervalChange(event.sessionExpiryInterval)
             is BrokersScreenEvent.BrokerSaved -> saveBroker()
@@ -126,6 +127,12 @@ class BrokersScreenViewModel(
         { null }
     ) { copy(connectionType = it) }
 
+    private fun handleAlertWhenDisconnectedChanged(alertWhenDisconnected: Boolean) = _manageBrokerFormState.update(
+        { it.alertWhenDisconnected },
+        alertWhenDisconnected,
+        { null }
+    ) { copy(alertWhenDisconnected = it) }
+
     private fun handleClientIdChange(clientId: String) = _manageBrokerFormState.update(
         { it.clientId },
         clientId,
@@ -156,7 +163,7 @@ class BrokersScreenViewModel(
         if (updateLinkedFieldsErrors) updateManageFormErrors()
     }
 
-    private fun handleReconnectRetriesChange(reconnectRetries: String) = _manageBrokerFormState.update(
+    private fun handleReconnectAttemptsChange(reconnectRetries: String) = _manageBrokerFormState.update(
         { it.reconnectAttempts },
         if (reconnectRetries.isBlank()) null else reconnectRetries.toIntOrNull(),
         { validateNumericalInput(reconnectRetries, !manageBrokerFormState.value.infiniteReconnects.value, 0.0, Utils.MAX_INPUT_NUMBER.toDouble()) }
@@ -194,6 +201,7 @@ class BrokersScreenViewModel(
                     authUser = if (state.authenticated.value) state.authUser.value else null,
                     authPassword = if (state.authenticated.value) state.authPassword.value else null,
                     connectionType = state.connectionType.value,
+                    alertWhenDisconnected = state.alertWhenDisconnected.value,
                     clientId = state.clientId.value,
                     keepAliveInterval = state.keepAliveInterval.value!!,
                     cleanStart = state.cleanStart.value,
@@ -237,7 +245,7 @@ class BrokersScreenViewModel(
         handleKeepAliveIntervalChange(manageBrokerFormState.value.keepAliveInterval.value.toString())
         handleCleanStartChange(manageBrokerFormState.value.cleanStart.value, false)
         handleInfiniteReconnectsChange(manageBrokerFormState.value.infiniteReconnects.value, false)
-        handleReconnectRetriesChange(manageBrokerFormState.value.reconnectAttempts.value.toString())
+        handleReconnectAttemptsChange(manageBrokerFormState.value.reconnectAttempts.value.toString())
         handleReconnectIntervalChange(manageBrokerFormState.value.reconnectInterval.value.toString())
         handleSessionExpiryIntervalChange(manageBrokerFormState.value.sessionExpiryInterval.value.toString())
     }

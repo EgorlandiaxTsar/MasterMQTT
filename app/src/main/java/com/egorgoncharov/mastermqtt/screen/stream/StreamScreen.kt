@@ -26,13 +26,13 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SwapHorizontalCircle
-import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.WifiTethering
 import androidx.compose.material.icons.filled.WifiTetheringError
 import androidx.compose.material.icons.filled.WifiTetheringOff
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -99,7 +99,7 @@ fun StreamScreen(vm: StreamScreenViewModel, navController: NavHostController) {
             StreamSourceChat(vm)
         }
     }
-    StatusTopBar(navController, mainSettingsProfile!!, connections)
+    StatusTopBar(navController, mainSettingsProfile!!, connections, vm.isBrokersViewBound())
     Spacer(Modifier.height(20.dp))
     LazyColumn(modifier = Modifier.fillMaxWidth()) {
         brokers.forEach { connection ->
@@ -124,10 +124,10 @@ fun StreamScreen(vm: StreamScreenViewModel, navController: NavHostController) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatusTopBar(navController: NavHostController, settingsProfile: SettingsProfileEntity, connectionStates: Map<String, MqttConnection>) {
+fun StatusTopBar(navController: NavHostController, settingsProfile: SettingsProfileEntity, connectionStates: Map<String, MqttConnection>, brokersViewOpened: Boolean) {
     val connectedCount = connectionStates.values.filter { it.state == MqttConnectionState.CONNECTED }.size
     var showSettingsScreen by remember { mutableStateOf(false) }
-    var showConnectionsQuickView by remember { mutableStateOf(false) }
+    var showConnectionsQuickView by remember { mutableStateOf(brokersViewOpened) }
     val containerColor = if (connectedCount > 0) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
     val dotColor = if (connectedCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     val contentColor = if (connectedCount > 0) MaterialTheme.colorScheme.inversePrimary else MaterialTheme.colorScheme.onSurfaceVariant
@@ -200,6 +200,7 @@ fun StatusTopBar(navController: NavHostController, settingsProfile: SettingsProf
 @SuppressLint("SimpleDateFormat")
 @Composable
 fun StreamSourceContainer(vm: StreamScreenViewModel, streamSource: TopicEntity) {
+    val settingsProfile by vm.mainSettingProfile.collectAsStateWithLifecycle(SettingsProfileEntity.DUMMY)
     val messages by vm.messages.collectAsStateWithLifecycle(emptyList())
     val streamMessages = messages.filter { it.topicId == streamSource.id }
 
@@ -231,7 +232,7 @@ fun StreamSourceContainer(vm: StreamScreenViewModel, streamSource: TopicEntity) 
                 }
                 Column(Modifier.weight(1f)) {
                     Text(streamSource.name, style = MaterialTheme.typography.titleSmall)
-                    Text(streamSource.topic, style = MaterialTheme.typography.labelMedium)
+                    if (settingsProfile!!.showTopicRouteInStream) Text(streamSource.topic, style = MaterialTheme.typography.labelMedium)
                 }
                 if (streamMessages.isNotEmpty()) {
                     Box(
@@ -244,7 +245,7 @@ fun StreamSourceContainer(vm: StreamScreenViewModel, streamSource: TopicEntity) 
                     }
                 }
             }
-            if (streamMessages.isNotEmpty()) {
+            if (streamMessages.isNotEmpty() && streamMessages[0].content.isNotBlank()) {
                 Spacer(Modifier.height(5.dp))
                 val trimmedMessage = streamMessages[0].content.take(128) + if (streamMessages[0].content.length > 128) "..." else ""
                 Text(trimmedMessage, style = MaterialTheme.typography.labelSmall)
@@ -454,18 +455,20 @@ fun ConnectionsQuickView(connectionStates: Map<String, MqttConnection>) {
                     val icon = when (connection.state) {
                         MqttConnectionState.CONNECTED -> Icons.Filled.WifiTethering
                         MqttConnectionState.DISCONNECTED -> Icons.Filled.WifiTetheringOff
-                        MqttConnectionState.INTERMEDIATE -> Icons.Filled.Timer
                         MqttConnectionState.DISCONNECTED_FAILED -> Icons.Filled.WifiTetheringError
+                        else -> null
                     }
                     val backgroundColor = when (connection.state) {
                         MqttConnectionState.CONNECTED -> MaterialTheme.colorScheme.primary
                         MqttConnectionState.DISCONNECTED -> MaterialTheme.colorScheme.surfaceVariant
+                        MqttConnectionState.RECONNECTING -> MaterialTheme.colorScheme.error
                         MqttConnectionState.INTERMEDIATE -> MaterialTheme.colorScheme.secondary
                         MqttConnectionState.DISCONNECTED_FAILED -> MaterialTheme.colorScheme.error
                     }
                     val contentColor = when (connection.state) {
                         MqttConnectionState.CONNECTED -> MaterialTheme.colorScheme.onPrimary
                         MqttConnectionState.DISCONNECTED -> MaterialTheme.colorScheme.onSurfaceVariant
+                        MqttConnectionState.RECONNECTING -> MaterialTheme.colorScheme.onError
                         MqttConnectionState.INTERMEDIATE -> MaterialTheme.colorScheme.onSecondary
                         MqttConnectionState.DISCONNECTED_FAILED -> MaterialTheme.colorScheme.onError
                     }
@@ -475,7 +478,13 @@ fun ConnectionsQuickView(connectionStates: Map<String, MqttConnection>) {
                             .background(color = backgroundColor, shape = RoundedCornerShape(100)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(modifier = Modifier.size(16.dp), imageVector = icon, contentDescription = null, tint = contentColor)
+                        if (icon != null) {
+                            Icon(modifier = Modifier.size(16.dp), imageVector = icon, contentDescription = null, tint = contentColor)
+                        } else CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = contentColor
+                        )
                     }
                 }
             }

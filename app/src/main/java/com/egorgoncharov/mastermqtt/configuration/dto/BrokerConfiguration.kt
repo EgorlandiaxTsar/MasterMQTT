@@ -10,6 +10,7 @@ data class BrokerConfiguration(
     @SerialName("url") val url: String, // ConnectionType + Host + Port
     @SerialName("authentication") val authentication: String?, // User + Password
     @SerialName("clientId") val clientId: String,
+    @SerialName("alertWhenDisconnected") val alertWhenDisconnected: Boolean,
     @SerialName("keepAliveInterval") val keepAliveInterval: Int,
     @SerialName("cleanStart") val cleanStart: Boolean,
     @SerialName("reconnectAttempts") val reconnectAttempts: Int?,

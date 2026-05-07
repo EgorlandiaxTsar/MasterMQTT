@@ -7,6 +7,7 @@ import com.egorgoncharov.mastermqtt.model.types.ThemeOption
 
 sealed interface GeneralSettingsScreenEvent {
     data class SafetyButtonEnabledChanged(val enabled: Boolean) : GeneralSettingsScreenEvent
+    data class ShowTopicRouteInStreamChanged(val enabled: Boolean) : GeneralSettingsScreenEvent
     data class ThemeOptionChanged(val theme: ThemeOption) : GeneralSettingsScreenEvent
     data class TTSLanguageChanged(val ttsLanguage: TTSLanguage) : GeneralSettingsScreenEvent
     data class DefaultMessageAgeChanged(val defaultMessageAge: String) : GeneralSettingsScreenEvent

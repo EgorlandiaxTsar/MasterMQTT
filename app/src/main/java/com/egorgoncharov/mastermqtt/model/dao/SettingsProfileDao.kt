@@ -38,7 +38,8 @@ interface SettingsProfileDao : BaseDao<SettingsProfileEntity> {
                     ttsLanguage = TTSLanguage.RU,
                     theme = ThemeOption.SYSTEM,
                     defaultMessageAge = 604800, // 7 days
-                    settingsSafetyButtonEnabled = false
+                    settingsSafetyButtonEnabled = false,
+                    showTopicRouteInStream = false
                 )
             )
         }

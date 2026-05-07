@@ -19,6 +19,7 @@ data class ManageTopicsFormState(
             authUser = null,
             authPassword = null,
             connectionType = ConnectionType.TCP,
+            alertWhenDisconnected = true,
             clientId = "",
             keepAliveInterval = 0,
             cleanStart = true,
@@ -41,7 +42,7 @@ data class ManageTopicsFormState(
     val payloadContent: FormFieldState<String> = FormFieldState(reference?.payloadContent ?: ""),
     val highPriority: FormFieldState<Boolean> = FormFieldState(reference?.highPriority ?: false),
     val ignoreBedTime: FormFieldState<Boolean> = FormFieldState(reference?.ignoreBedTime ?: false),
-    val ttsText: FormFieldState<String> = FormFieldState(reference?.notificationSoundText ?: ""),
+    val ttsText: FormFieldState<String> = FormFieldState(if (reference != null) reference.notificationSoundText ?: "" else "={*}"),
     val notificationSound: FormFieldState<String> = FormFieldState(
         reference?.notificationSoundPath ?: ""
     ),

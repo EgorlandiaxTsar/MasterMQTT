@@ -62,6 +62,7 @@ class GeneralSettingsScreenViewModel(
     fun onEvent(event: GeneralSettingsScreenEvent) {
         when (event) {
             is GeneralSettingsScreenEvent.SafetyButtonEnabledChanged -> handleSafetyButtonEnabledChange(event.enabled)
+            is GeneralSettingsScreenEvent.ShowTopicRouteInStreamChanged -> handleShowTopicRouteInStreamChanged(event.enabled)
             is GeneralSettingsScreenEvent.ThemeOptionChanged -> handleThemeOptionChange(event.theme)
             is GeneralSettingsScreenEvent.TTSLanguageChanged -> handleTTSLanguageChange(event.ttsLanguage)
             is GeneralSettingsScreenEvent.DefaultMessageAgeChanged -> handleDefaultMessageAgeChange(event.defaultMessageAge)
@@ -79,6 +80,13 @@ class GeneralSettingsScreenViewModel(
         viewModelScope.launch {
             val mainSettingsProfile = settingsProfileDao.getMainSettingsProfile() ?: return@launch
             settingsProfileDao.save(mainSettingsProfile.copy(settingsSafetyButtonEnabled = enabled))
+        }
+    }
+
+    private fun handleShowTopicRouteInStreamChanged(enabled: Boolean) {
+        viewModelScope.launch {
+            val mainSettingsProfile = settingsProfileDao.getMainSettingsProfile() ?: return@launch
+            settingsProfileDao.save(mainSettingsProfile.copy(showTopicRouteInStream = enabled))
         }
     }
 

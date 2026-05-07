@@ -19,6 +19,7 @@ data class ManageBrokerFormState(
     val connectionType: FormFieldState<ConnectionType> = FormFieldState(
         reference?.connectionType ?: ConnectionType.TCP
     ),
+    val alertWhenDisconnected: FormFieldState<Boolean> = FormFieldState(reference?.alertWhenDisconnected ?: false),
     val clientId: FormFieldState<String> = FormFieldState(
         reference?.clientId ?: UUID.randomUUID().toString().take(6)
     ),

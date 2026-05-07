@@ -16,7 +16,7 @@ import androidx.core.text.isDigitsOnly
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 
-val nameRegex = """^[A-Za-z0-9\u0400-\u04FF_\-,./*+\[\]{}()?!@#&]{3,32}$""".toRegex()
+val nameRegex = """^[А-Яа-яA-Za-z0-9\u0400-\u04FF_\-,./*+\[\]{}()?!@#& ]{3,32}$""".toRegex()
 val ipRegex = "^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}$".toRegex()
 val hostRegex = """^([a-z0-9]+(-[a-z0-9]+)*\.)+[a-z]{2,}$""".toRegex(RegexOption.IGNORE_CASE)
 val jsonPathRegex = """([a-zA-Z_]\w*(?:\[\d+])?(?:\.[a-zA-Z_]\w*(?:\[\d+])?)*)""".toRegex(RegexOption.IGNORE_CASE)

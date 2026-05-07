@@ -21,12 +21,14 @@ import com.hivemq.client.mqtt.mqtt5.message.publish.Mqtt5Publish
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -67,8 +69,8 @@ open class MqttManager(
     fun started() = brokersSyncJob != null
 
     fun register(broker: BrokerEntity, connectInstantly: Boolean = false, then: (() -> Unit)? = null) {
-        val client = buildConnection(broker)
         val registerFn = {
+            val client = buildConnection(broker)
             clients.update { current ->
                 (current + (broker.id to MqttConnection(
                     broker,
@@ -92,7 +94,7 @@ open class MqttManager(
             clients.update { (it - broker.id).toMutableMap() }
             subscriptionsSyncJobs.remove(broker.id)?.cancel()
         }
-        if (clients.value[broker.id]?.state == MqttConnectionState.CONNECTED) {
+        if (clients.value[broker.id]?.state in listOf(MqttConnectionState.RECONNECTING, MqttConnectionState.CONNECTED)) {
             disconnect(broker, updateState = false) { remove(); then?.invoke() }
         } else {
             remove()
@@ -102,7 +104,12 @@ open class MqttManager(
 
     fun connect(broker: BrokerEntity, then: (() -> Unit)? = null) {
         if (!clients.value.containsKey(broker.id)) return
-        if (clients.value[broker.id]?.state == MqttConnectionState.CONNECTED || clients.value[broker.id]?.state == MqttConnectionState.INTERMEDIATE) return
+        if (clients.value[broker.id]?.state in listOf(
+                MqttConnectionState.CONNECTED,
+                MqttConnectionState.INTERMEDIATE,
+                MqttConnectionState.RECONNECTING
+            )
+        ) return
         updateClient(broker.id) { it.copy(state = MqttConnectionState.INTERMEDIATE) }
         clients.value[broker.id]!!.client.connectWith()
             .keepAlive(1.coerceAtLeast(broker.keepAliveInterval))
@@ -115,7 +122,7 @@ open class MqttManager(
             .handle { _, throwable ->
                 updateClient(broker.id) { it.copy(state = if (throwable == null) MqttConnectionState.CONNECTED else MqttConnectionState.DISCONNECTED_FAILED) }
                 if (throwable == null && !subscriptionsSyncJobs.containsKey(broker.id)) subscriptionsSyncJobs[broker.id] =
-                    syncSubscriptions(clients.value[broker.id]!!)
+                    syncTopics(clients.value[broker.id]!!)
                 if (then != null) then()
             }
         if (!broker.connected) scope.launch { brokerDao.save(broker.copy(connected = true)) }
@@ -124,10 +131,16 @@ open class MqttManager(
     fun disconnect(broker: BrokerEntity, updateState: Boolean = true, then: (() -> Unit)? = null) {
         if (!clients.value.containsKey(broker.id)) return
         val connection = clients.value[broker.id]!!
-        if (connection.state != MqttConnectionState.CONNECTED) return
-        connection.client.disconnect().thenAccept { if (then != null) then() }
-        if (broker.connected && updateState) {
-            scope.launch { brokerDao.save(broker.copy(connected = false)) }
+        if (connection.state !in listOf(MqttConnectionState.CONNECTED, MqttConnectionState.RECONNECTING)) return
+        scope.launch {
+            try {
+                withContext(NonCancellable) {
+                    connection.client.disconnect().whenComplete { _, _ -> then?.invoke() }
+                    if (broker.connected && updateState) brokerDao.save(broker.copy(connected = false))
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
@@ -153,6 +166,7 @@ open class MqttManager(
                         context.reconnector.reconnect(false)
                     }
                     else -> {
+                        updateClient(broker.id) { it.copy(state = MqttConnectionState.RECONNECTING) }
                         retryCount++
                         if (broker.reconnectAttempts == null || retryCount <= broker.reconnectAttempts) {
                             context.reconnector.reconnect(true)
@@ -164,7 +178,12 @@ open class MqttManager(
                     }
                 }
             }
-            .addConnectedListener { _ -> retryCount = 0 }
+            .addConnectedListener {
+                if (clients.value[broker.id]?.state != MqttConnectionState.CONNECTED) {
+                    updateClient(broker.id) { it.copy(state = MqttConnectionState.CONNECTED) }
+                }
+                retryCount = 0
+            }
             .apply {
                 if (broker.connectionType == ConnectionType.SSL) sslWithDefaultConfig()
                 if (!broker.authUser.isNullOrBlank()) {
@@ -177,7 +196,33 @@ open class MqttManager(
             .buildAsync()
     }
 
-    protected fun syncSubscriptions(connection: MqttConnection): Job {
+    protected fun syncBrokers(): Job {
+        val sync = { brokers: List<BrokerEntity> ->
+            val ids = brokers.map { it.id }
+            clients.value.values.filter { it.broker.id !in ids }.forEach { connection -> deregister(connection.broker) }
+            brokers.forEach { broker ->
+                val existing = clients.value[broker.id]
+                if (existing == null) {
+                    register(broker, broker.connected)
+                } else {
+                    val configChanged = existing.broker.copy(connected = broker.connected) != broker
+                    val statusChanged = existing.broker.connected != broker.connected
+                    if (configChanged) {
+                        val wasActive = existing.state == MqttConnectionState.CONNECTED
+                        register(broker, broker.connected || wasActive)
+                    } else if (statusChanged) {
+                        if (broker.connected) connect(broker) else disconnect(broker)
+                        updateClient(broker.id) { it.copy(broker = broker) }
+                    } else {
+                        updateClient(broker.id) { it.copy(broker = broker) }
+                    }
+                }
+            }
+        }
+        return scope.launch { brokerDao.streamBrokers().collect { sync(it) } }
+    }
+
+    protected fun syncTopics(connection: MqttConnection): Job {
         val sync = { topics: List<TopicEntity> ->
             val currentIds = topics.map { it.id }.toSet()
             val toRemove = connection.subscriptions.filter { it.id !in currentIds }
@@ -217,32 +262,6 @@ open class MqttManager(
             .send()
     }
 
-    protected fun syncBrokers(): Job {
-        val sync = { brokers: List<BrokerEntity> ->
-            val ids = brokers.map { it.id }
-            clients.value.values.filter { it.broker.id !in ids }.forEach { connection -> deregister(connection.broker) }
-            brokers.forEach { broker ->
-                val existing = clients.value[broker.id]
-                if (existing == null) {
-                    register(broker, broker.connected)
-                } else {
-                    val configChanged = existing.broker.copy(connected = broker.connected) != broker
-                    val statusChanged = existing.broker.connected != broker.connected
-                    if (configChanged) {
-                        val wasActive = existing.state == MqttConnectionState.CONNECTED || existing.state == MqttConnectionState.INTERMEDIATE
-                        register(broker, broker.connected || wasActive)
-                    } else if (statusChanged) {
-                        if (broker.connected) connect(broker) else disconnect(broker)
-                        updateClient(broker.id) { it.copy(broker = broker) }
-                    } else {
-                        updateClient(broker.id) { it.copy(broker = broker) }
-                    }
-                }
-            }
-        }
-        return scope.launch { brokerDao.streamBrokers().collect { sync(it) } }
-    }
-
     protected fun handleIncomingMessage(
         broker: BrokerEntity,
         id: String,
@@ -257,8 +276,9 @@ open class MqttManager(
         val payload = publish.payloadAsBytes
         val processed = processPayload(payload, topic.payloadContent)
         var processedDescription = ""
-        processed.forEach { (path, value) -> processedDescription += "$path : $value\n" }
+        processed.forEach { (path, value) -> processedDescription += "${if (path.isNotEmpty()) "$path : " else ""}$value\n" }
         if (topic.payloadContent == null) processedDescription = ""
+        if (processedDescription.endsWith("\n")) processedDescription = processedDescription.take(processedDescription.length - 1)
         val notification = MessageEntity(
             UUID.randomUUID().toString(),
             topic.id,

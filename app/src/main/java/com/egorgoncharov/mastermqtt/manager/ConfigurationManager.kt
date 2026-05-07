@@ -30,6 +30,7 @@ class ConfigurationManager(
     private val brokerDao: BrokerDao,
     private val topicDao: TopicDao,
     private val messageDao: MessageDao,
+    private val storageManager: StorageManager,
     private val configurationConverter: ConfigurationEntityConverter
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -56,13 +57,15 @@ class ConfigurationManager(
     suspend fun load(uri: Uri, configuration: AppConfiguration, overrideOnConflict: Boolean) {
         return scope.async {
             val tempDir = File(context.cacheDir, "load_temp_${System.currentTimeMillis()}")
-            val soundsDir = File(context.filesDir, "sounds").apply { mkdirs() }
             tempDir.mkdirs()
             try {
                 context.contentResolver.openInputStream(uri)?.use { inputStream -> unzip(inputStream, tempDir) }
                 configuration.brokers.forEach { broker ->
                     val existingBroker = brokerDao.findByAddress(broker.address())
                     if (existingBroker != null && overrideOnConflict) {
+                        topicDao.findByBroker(existingBroker.id).forEach {
+                            if (it.notificationSoundPath != null) storageManager.deleteSound(it.notificationSoundPath)
+                        }
                         messageDao.deleteByBroker(existingBroker.id)
                         topicDao.deleteByBroker(existingBroker.id)
                         brokerDao.delete(existingBroker)
@@ -72,15 +75,20 @@ class ConfigurationManager(
                     broker.topics.forEach { topic ->
                         var finalSoundPath = topic.notificationSoundPath
                         if (topic.notificationSoundPath?.startsWith("resources/") == true) {
-                            val fileName = topic.notificationSoundPath.substringAfter("resources/")
                             val bundledFile = File(tempDir, topic.notificationSoundPath)
-                            val destinationFile = File(soundsDir, fileName)
                             if (bundledFile.exists()) {
-                                bundledFile.copyTo(destinationFile, overwrite = true)
-                                finalSoundPath = destinationFile.absolutePath
+                                finalSoundPath = storageManager.saveSound(
+                                    path = bundledFile.absolutePath,
+                                    contentProviderPath = false
+                                )
                             }
                         }
-                        topicDao.save(configurationConverter.topicFromConfigurationToEntity(brokerId = brokerId, topicConfiguration = topic.copy(notificationSoundPath = finalSoundPath)))
+                        topicDao.save(
+                            configurationConverter.topicFromConfigurationToEntity(
+                                brokerId = brokerId,
+                                topicConfiguration = topic.copy(notificationSoundPath = finalSoundPath)
+                            )
+                        )
                     }
                 }
             } finally {
@@ -192,7 +200,7 @@ class ConfigurationManager(
         }
     }
 
-    private fun getFileName(uri: android.net.Uri): String? {
+    private fun getFileName(uri: Uri): String? {
         if (uri.scheme == "content") {
             context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)

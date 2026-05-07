@@ -1,6 +1,7 @@
 package com.egorgoncharov.mastermqtt.manager
 
 import android.Manifest
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -11,11 +12,18 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.TaskStackBuilder
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
+import com.egorgoncharov.mastermqtt.MainActivity
 import com.egorgoncharov.mastermqtt.R
 import com.egorgoncharov.mastermqtt.model.entity.BrokerEntity
 import com.egorgoncharov.mastermqtt.model.entity.TopicEntity
+import com.egorgoncharov.mastermqtt.receiver.DisconnectAlertDismissReceiver
+import com.egorgoncharov.mastermqtt.service.MqttService
 
 open class NotificationManager(protected val context: Context) {
+    companion object {
+        const val ACTION_DISCARD_ALERT = "com.egorgoncharov.mastermqtt.DISCARD_ALERT"
+    }
+
     private val notificationManager = context.getSystemService(NotificationManager::class.java)
 
     private val channelMap = mapOf(
@@ -84,6 +92,18 @@ open class NotificationManager(protected val context: Context) {
         notificationManager.notify(notificationId, builder.build())
     }
 
+    fun showDisconnectAlert(description: String) {
+        val intent = Intent(context, MqttService::class.java).apply {
+            putExtra(MqttService.EXTRA_DISCONNECT_MESSAGE, description)
+        }
+        ContextCompat.startForegroundService(context, intent)
+    }
+
+    fun dismissAlert() {
+        val intent = Intent(context, MqttService::class.java)
+        context.startService(intent)
+    }
+
     fun clearAllChannels() {
         notificationManager.notificationChannels.forEach { channel -> notificationManager.deleteNotificationChannel(channel.id) }
     }
@@ -91,5 +111,50 @@ open class NotificationManager(protected val context: Context) {
     fun resetChannels() {
         clearAllChannels()
         initializeChannels()
+    }
+
+    fun buildServiceNotification(description: String? = null): Notification {
+        return if (description == null) {
+            val intent = Intent(context, MainActivity::class.java)
+            val pendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE)
+            NotificationCompat.Builder(context, MqttService.NOTIFICATION_CHANNEL_ID)
+                .setContentTitle("Monitoring brokers events")
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentIntent(pendingIntent)
+                .setOngoing(true)
+                .build()
+        } else {
+            val discardIntent = Intent(context, DisconnectAlertDismissReceiver::class.java).apply { action = ACTION_DISCARD_ALERT }
+            val discardPendingIntent = PendingIntent.getBroadcast(
+                context,
+                1,
+                discardIntent,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+            val clickIntent = Intent(Intent.ACTION_VIEW, "mastermqtt://stream?showBrokersView=true".toUri()).apply {
+                `package` = context.packageName
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra("ACTION_STOP_PINGING", true)
+            }
+            val clickPendingIntent = PendingIntent.getActivity(
+                context,
+                2,
+                clickIntent,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+
+            NotificationCompat.Builder(context, channelMap["max"]!!)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentTitle("Some brokers are disconnected")
+                .setContentText(description)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(description))
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setOngoing(true)
+                .setAutoCancel(false)
+                .addAction(R.drawable.outline_music_off_24, "Discard", discardPendingIntent)
+                .setContentIntent(clickPendingIntent)
+                .setDeleteIntent(discardPendingIntent)
+                .build()
+        }
     }
 }

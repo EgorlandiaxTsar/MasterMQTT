@@ -16,4 +16,5 @@ sealed interface StreamScreenEvent {
     object StreamCleared : StreamScreenEvent
 
     data class DeepLinkBoundChanged(val deepLinkBound: Boolean) : StreamScreenEvent
+    data class BrokersViewBoundChanged(val brokersViewBound: Boolean) : StreamScreenEvent
 }

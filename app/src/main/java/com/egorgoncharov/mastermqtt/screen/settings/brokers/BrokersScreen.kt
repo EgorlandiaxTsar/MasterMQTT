@@ -333,6 +333,11 @@ fun BrokerBody(connection: MqttConnection) {
             Icons.Filled.MonitorHeart
         )
         ItemProperty(
+            "Alert When Disconnected",
+            if (connection.broker.alertWhenDisconnected) "Yes" else "No",
+            Icons.Filled.CleaningServices
+        )
+        ItemProperty(
             "Clean Start",
             if (connection.broker.cleanStart) "Yes" else "No",
             Icons.Filled.CleaningServices
@@ -478,6 +483,14 @@ fun BrokerManage(state: ManageBrokerFormState, onEvent: (BrokersScreenEvent) -> 
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Switch(
+                            checked = state.alertWhenDisconnected.value,
+                            onCheckedChange = { onEvent(BrokersScreenEvent.AlertWhenDisconnectedChanged(it)) }
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text("Alert When Disconnected")
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Switch(
                             checked = state.infiniteReconnects.value,
                             onCheckedChange = { onEvent(BrokersScreenEvent.InfiniteReconnectsChanged(it)) }
                         )
@@ -503,7 +516,7 @@ fun BrokerManage(state: ManageBrokerFormState, onEvent: (BrokersScreenEvent) -> 
                         )
                         if (!state.infiniteReconnects.value) {
                             OutlinedTextField(
-                                value = state.reconnectAttempts.value.toString(),
+                                value = if (state.reconnectAttempts.value == null) "" else state.reconnectAttempts.value.toString(),
                                 onValueChange = { onEvent(BrokersScreenEvent.ReconnectAttemptsChanged(it)) },
                                 label = { Text("Retries") },
                                 isError = state.reconnectAttempts.errorMsg != null,

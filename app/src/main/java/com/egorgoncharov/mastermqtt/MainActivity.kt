@@ -1,13 +1,11 @@
 package com.egorgoncharov.mastermqtt
 
 import android.annotation.SuppressLint
-import android.content.ComponentName
-import android.content.Context
+import android.app.Activity
 import android.content.Intent
-import android.content.ServiceConnection
 import android.os.Bundle
-import android.os.IBinder
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
@@ -22,7 +20,6 @@ import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.filled.WifiTethering
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,6 +39,7 @@ import androidx.navigation.navDeepLink
 import com.egorgoncharov.mastermqtt.configuration.ConfigurationEntityConverter
 import com.egorgoncharov.mastermqtt.manager.ConfigurationManager
 import com.egorgoncharov.mastermqtt.manager.SoundManager
+import com.egorgoncharov.mastermqtt.manager.StorageManager
 import com.egorgoncharov.mastermqtt.manager.mqtt.MqttManager
 import com.egorgoncharov.mastermqtt.model.dao.BrokerDao
 import com.egorgoncharov.mastermqtt.model.dao.MessageDao
@@ -65,7 +63,7 @@ import com.egorgoncharov.mastermqtt.ui.theme.AppTheme
 sealed class NavRoute(val route: String, val label: String, val icon: ImageVector) {
     data object Topics : NavRoute("topics", "Topics", Icons.Filled.Tag)
     data object Brokers : NavRoute("brokers", "Brokers", Icons.Filled.WifiTethering)
-    data object Stream : NavRoute("stream?topicId={topicId}", "Stream", Icons.Filled.Bolt)
+    data object Stream : NavRoute("stream?topicId={topicId}&showBrokersView={showBrokersView}", "Stream", Icons.Filled.Bolt)
 
     data object Settings : NavRoute("settings", "Settings", Icons.Filled.Settings)
 
@@ -79,22 +77,14 @@ sealed class NavRoute(val route: String, val label: String, val icon: ImageVecto
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val serviceIntent = Intent(this, MqttService::class.java)
-        startForegroundService(serviceIntent)
+        handleNotificationIntent(intent)
+        startForegroundService(Intent(this, MqttService::class.java))
         enableEdgeToEdge()
         setContent {
-            var mqttService by remember { mutableStateOf<MqttService?>(null) }
-            MqttServiceHandler { mqttService = it }
-            val dbManager = mqttService?.binder?.database() ?: return@setContent
-            val mqttManager = mqttService?.binder?.manager() ?: return@setContent
-            val brokerDao = dbManager.db!!.brokerDao()
-            val topicDao = dbManager.db!!.topicDao()
-            val messageDao = dbManager.db!!.messageDao()
-            val settingsProfileDao = dbManager.db!!.settingsProfilesDao()
-            val configurationEntityConverter = ConfigurationEntityConverter(brokerDao, topicDao)
-            val configurationManager = ConfigurationManager(applicationContext, brokerDao, topicDao, messageDao, configurationEntityConverter)
-            val settingsProfile by settingsProfileDao.streamMainSettingsProfile().collectAsStateWithLifecycle(initialValue = SettingsProfileEntity.DUMMY)
-            LaunchedEffect(Unit) { settingsProfileDao.createMainSettingsProfileIfNotExists() }
+            val app = application as MasterMqttApp
+            val db = app.databaseManager.db!!
+            val settingsProfile by db.settingsProfilesDao().streamMainSettingsProfile().collectAsStateWithLifecycle(initialValue = SettingsProfileEntity.DUMMY)
+            LaunchedEffect(Unit) { db.settingsProfilesDao().createMainSettingsProfileIfNotExists() }
             AppTheme(themeOption = settingsProfile?.theme ?: ThemeOption.SYSTEM) {
                 val navController = rememberNavController()
                 var showSettingsList by remember { mutableStateOf(false) }
@@ -103,14 +93,15 @@ class MainActivity : ComponentActivity() {
                         AppNavHost(
                             navController = navController,
                             modifier = Modifier.padding(innerPadding),
-                            brokerDao = brokerDao,
-                            topicDao = topicDao,
-                            messageDao = messageDao,
-                            settingsProfileDao = settingsProfileDao,
-                            mqttManager = mqttManager,
-                            soundManager = SoundManager(applicationContext, settingsProfileDao),
-                            configurationManager = configurationManager,
-                            configurationEntityConverter = configurationEntityConverter
+                            brokerDao = db.brokerDao(),
+                            topicDao = db.topicDao(),
+                            messageDao = db.messageDao(),
+                            settingsProfileDao = db.settingsProfilesDao(),
+                            mqttManager = app.mqttManager,
+                            storageManager = app.storageManager,
+                            soundManager = app.soundManager,
+                            configurationManager = app.configurationManager,
+                            configurationEntityConverter = app.configurationEntityConverter
                         )
                         if (showSettingsList) {
                             SettingsScreen(navController) { showSettingsList = false }
@@ -120,30 +111,15 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-}
 
-@Composable
-fun MqttServiceHandler(
-    context: Context = LocalContext.current,
-    onServiceConnected: (MqttService) -> Unit
-) {
-    DisposableEffect(context) {
-        val connection = object : ServiceConnection {
-            override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-                val binder = service as? MqttService.LocalBinder
-                binder?.service()?.let { mqttService ->
-                    onServiceConnected(mqttService)
-                }
-            }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleNotificationIntent(intent)
+    }
 
-            override fun onServiceDisconnected(name: ComponentName?) {
-            }
-        }
-
-        val intent = Intent(context, MqttService::class.java)
-        context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
-        onDispose {
-            context.unbindService(connection)
+    private fun handleNotificationIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra("ACTION_STOP_PINGING", false) == true) {
+            (application as MasterMqttApp).alertManager.discardAlert()
         }
     }
 }
@@ -158,16 +134,17 @@ private fun AppNavHost(
     messageDao: MessageDao,
     settingsProfileDao: SettingsProfileDao,
     mqttManager: MqttManager,
+    storageManager: StorageManager,
     soundManager: SoundManager,
     configurationManager: ConfigurationManager,
     configurationEntityConverter: ConfigurationEntityConverter
 ) {
+
     NavHost(
         navController = navController,
         startDestination = NavRoute.Stream.route,
         modifier = modifier
     ) {
-
         composable(NavRoute.Brokers.route) {
             Scaffold(Modifier.padding(20.dp)) {
                 Column(Modifier.fillMaxSize()) {
@@ -185,7 +162,7 @@ private fun AppNavHost(
                 Column(Modifier.fillMaxSize()) {
                     TopicsScreen(
                         vm = viewModel(
-                            factory = TopicsScreenViewModel.Factory(brokerDao, topicDao, messageDao, settingsProfileDao, soundManager)
+                            factory = TopicsScreenViewModel.Factory(brokerDao, topicDao, messageDao, settingsProfileDao, storageManager, soundManager)
                         ),
                         navController
                     )
@@ -207,9 +184,14 @@ private fun AppNavHost(
         }
 
         composable(NavRoute.Stream.route, deepLinks = listOf(navDeepLink { uriPattern = "mastermqtt://${NavRoute.Stream.route}" })) { backStackEntry ->
+            val context = LocalContext.current
+            BackHandler(enabled = true) {
+                (context as? Activity)?.finish()
+            }
             Scaffold(Modifier.padding(20.dp)) {
                 Column(Modifier.fillMaxSize()) {
                     val topicId = backStackEntry.arguments?.getString("topicId")
+                    val showBrokersView = backStackEntry.arguments?.getString("showBrokersView") == "true"
                     val vm = viewModel<StreamScreenViewModel>(factory = StreamScreenViewModel.Factory(brokerDao, topicDao, messageDao, settingsProfileDao, mqttManager))
                     if (topicId != null) {
                         LaunchedEffect(Unit) {
@@ -220,6 +202,8 @@ private fun AppNavHost(
                             }
                         }
                     } else vm.onEvent(StreamScreenEvent.DeepLinkBoundChanged(false))
+                    if (showBrokersView && !vm.isBrokersViewBound()) vm.onEvent(StreamScreenEvent.BrokersViewBoundChanged(true))
+                    else vm.onEvent(StreamScreenEvent.BrokersViewBoundChanged(false))
                     StreamScreen(vm = vm, navController = navController)
                 }
             }

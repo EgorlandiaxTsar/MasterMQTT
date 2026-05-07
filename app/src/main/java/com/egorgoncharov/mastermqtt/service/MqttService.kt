@@ -1,73 +1,37 @@
 package com.egorgoncharov.mastermqtt.service
 
 import android.app.NotificationChannel
-import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
-import android.os.Binder
 import android.os.IBinder
-import androidx.core.app.NotificationCompat
-import com.egorgoncharov.mastermqtt.MainActivity
-import com.egorgoncharov.mastermqtt.R
-import com.egorgoncharov.mastermqtt.manager.DatabaseManager
-import com.egorgoncharov.mastermqtt.manager.NotificationManager
-import com.egorgoncharov.mastermqtt.manager.SoundManager
-import com.egorgoncharov.mastermqtt.manager.mqtt.MqttManager
+import com.egorgoncharov.mastermqtt.MasterMqttApp
 
 class MqttService : Service() {
     companion object {
-        private const val NOTIFICATION_CHANNEL_ID = "MasterMQTTServiceChannel"
+        const val NOTIFICATION_ID = 1
+        const val EXTRA_DISCONNECT_MESSAGE = "extra_disconnect_message"
+        const val NOTIFICATION_CHANNEL_ID = "MasterMQTTServiceChannel"
     }
 
-    private lateinit var databaseManager: DatabaseManager
-    private lateinit var mqttManager: MqttManager
-    private lateinit var notificationManager: NotificationManager
-    val binder = LocalBinder()
-
-    inner class LocalBinder : Binder() {
-        fun service(): MqttService = this@MqttService
-
-        fun manager(): MqttManager = mqttManager
-        fun database(): DatabaseManager = databaseManager
-    }
-
-    override fun onCreate() {
-        super.onCreate()
-        databaseManager = DatabaseManager(applicationContext).apply { connect() }
-        notificationManager = NotificationManager(applicationContext)
-        mqttManager = MqttManager(
-            applicationContext,
-            databaseManager.db!!.brokerDao(),
-            databaseManager.db!!.topicDao(),
-            databaseManager.db!!.messageDao(),
-            notificationManager,
-            SoundManager(applicationContext, databaseManager.db!!.settingsProfilesDao())
-        )
-    }
+    private val app get() = application as MasterMqttApp
 
     override fun onStartCommand(
         intent: Intent?,
         flags: Int,
         startId: Int
     ): Int {
-        notificationManager.addChannel(NotificationChannel(NOTIFICATION_CHANNEL_ID, "Master MQTT Service Channel", android.app.NotificationManager.IMPORTANCE_LOW))
-        val intent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
-        val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setContentTitle("Monitoring brokers events")
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentIntent(pendingIntent)
-            .setOngoing(true)
-            .build()
-        startForeground(1, notification)
-        if (!mqttManager.started()) mqttManager.start()
+        app.notificationManager.addChannel(NotificationChannel(NOTIFICATION_CHANNEL_ID, "Master MQTT Service Channel", android.app.NotificationManager.IMPORTANCE_LOW))
+        val disconnectMessage = intent?.getStringExtra(EXTRA_DISCONNECT_MESSAGE)
+        val notification = app.notificationManager.buildServiceNotification(disconnectMessage)
+        startForeground(NOTIFICATION_ID, notification)
+        if (!app.mqttManager.started()) app.mqttManager.start()
         return START_STICKY
     }
 
-    override fun onBind(p0: Intent?): IBinder = binder
+    override fun onBind(p0: Intent?): IBinder? = null
 
     override fun onDestroy() {
-        mqttManager.shutdown()
+        app.mqttManager.shutdown()
         super.onDestroy()
     }
 }

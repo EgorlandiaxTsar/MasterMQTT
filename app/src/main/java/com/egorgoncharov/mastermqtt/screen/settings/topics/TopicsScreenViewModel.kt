@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.egorgoncharov.mastermqtt.Utils
 import com.egorgoncharov.mastermqtt.manager.SoundManager
+import com.egorgoncharov.mastermqtt.manager.StorageManager
 import com.egorgoncharov.mastermqtt.model.dao.BrokerDao
 import com.egorgoncharov.mastermqtt.model.dao.MessageDao
 import com.egorgoncharov.mastermqtt.model.dao.SettingsProfileDao
@@ -30,13 +31,21 @@ class TopicsScreenViewModel(
     private val topicDao: TopicDao,
     private val messageDao: MessageDao,
     private val settingsProfileDao: SettingsProfileDao,
+    private val storageManager: StorageManager,
     private val soundManager: SoundManager
 ) :
     ViewModel() {
     companion object {
-        fun Factory(brokerDao: BrokerDao, topicDao: TopicDao, messageDao: MessageDao, settingsProfileDao: SettingsProfileDao, soundManager: SoundManager): ViewModelProvider.Factory =
+        fun Factory(
+            brokerDao: BrokerDao,
+            topicDao: TopicDao,
+            messageDao: MessageDao,
+            settingsProfileDao: SettingsProfileDao,
+            storageManager: StorageManager,
+            soundManager: SoundManager
+        ): ViewModelProvider.Factory =
             viewModelFactory {
-                initializer { TopicsScreenViewModel(brokerDao, topicDao, messageDao, settingsProfileDao, soundManager) }
+                initializer { TopicsScreenViewModel(brokerDao, topicDao, messageDao, settingsProfileDao, storageManager, soundManager) }
             }
     }
 
@@ -163,7 +172,7 @@ class TopicsScreenViewModel(
         try {
             if (manageTopicsFormState.value.notificationSound.value.isNotBlank()) {
                 viewModelScope.launch {
-                    soundManager.playSound(manageTopicsFormState.value.notificationSound.value, manageTopicsFormState.value.notificationSoundLevel.value, true)
+                    soundManager.playSound(manageTopicsFormState.value.notificationSound.value, manageTopicsFormState.value.notificationSoundLevel.value, highPriority = true, bypassDnd = true)
                 }
             }
         } catch (_: Exception) {
@@ -180,6 +189,13 @@ class TopicsScreenViewModel(
         if (!manageTopicsFormState.value.valid()) return
         val state = manageTopicsFormState.value
         viewModelScope.launch {
+            var savedSoundPath: String? = null
+            val soundPathChanged = state.reference?.notificationSoundPath != state.notificationSound.value
+            if (soundPathChanged) {
+                if (state.reference?.notificationSoundPath != null) storageManager.deleteSound(state.reference.notificationSoundPath)
+                if (state.notificationSound.value.isNotBlank()) savedSoundPath = storageManager.saveSound(state.notificationSound.value, true)
+            }
+            if (soundPathChanged && (savedSoundPath == null && state.notificationSound.value.isNotBlank())) return@launch
             topicDao.save(
                 TopicEntity(
                     id = state.reference?.id ?: UUID.randomUUID().toString(),
@@ -268,6 +284,7 @@ class TopicsScreenViewModel(
 
     private fun deleteTopic(topic: TopicEntity) {
         viewModelScope.launch {
+            if (topic.notificationSoundPath != null) storageManager.deleteSound(topic.notificationSoundPath)
             topicDao.delete(topic)
             messageDao.deleteByTopic(topic.id)
         }

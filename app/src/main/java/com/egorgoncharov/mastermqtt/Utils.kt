@@ -6,6 +6,7 @@ import android.provider.OpenableColumns
 import androidx.core.net.toUri
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.URLDecoder
 import java.nio.file.Paths
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -26,13 +27,17 @@ class Utils {
             val uri = path.toUri()
             val titleParam = uri.getQueryParameter("title")
             if (titleParam != null) return titleParam
-            if (uri.scheme == "content") {
-                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                    if (nameIndex != -1 && cursor.moveToFirst()) {
-                        return cursor.getString(nameIndex)
+            if (uri.toString().startsWith("content://") ?: false) {
+                var name = URLDecoder.decode(uri.toString()).toUri().getQueryParameter("title")
+                if (name == null) {
+                    context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                        val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        if (nameIndex != -1 && cursor.moveToFirst()) {
+                            name = cursor.getString(nameIndex)
+                        }
                     }
                 }
+                return name ?: "unknown_file"
             }
             return try {
                 uri.path?.let { Paths.get(it).fileName.toString() } ?: "unknown_file"
