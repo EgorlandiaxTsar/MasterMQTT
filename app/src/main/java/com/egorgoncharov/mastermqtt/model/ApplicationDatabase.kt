@@ -19,7 +19,7 @@ import com.egorgoncharov.mastermqtt.model.entity.TopicEntity
         MessageEntity::class,
         SettingsProfileEntity::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

@@ -39,6 +39,7 @@ data class ManageTopicsFormState(
             "b@"
         ) ?: false
     ),
+    val showJsonKeys: FormFieldState<Boolean> = FormFieldState(reference?.showJsonKeys ?: true),
     val payloadContent: FormFieldState<String> = FormFieldState(reference?.payloadContent ?: ""),
     val highPriority: FormFieldState<Boolean> = FormFieldState(reference?.highPriority ?: false),
     val ignoreBedTime: FormFieldState<Boolean> = FormFieldState(reference?.ignoreBedTime ?: false),

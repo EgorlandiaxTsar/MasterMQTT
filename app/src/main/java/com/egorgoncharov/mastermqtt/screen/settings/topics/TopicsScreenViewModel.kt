@@ -63,7 +63,7 @@ class TopicsScreenViewModel(
             is TopicsScreenEvent.NameChanged -> handleNameChange(event.name)
             is TopicsScreenEvent.TopicChanged -> handleTopicChange(event.topic)
             is TopicsScreenEvent.QosChanged -> handleQosChange(event.qos)
-            is TopicsScreenEvent.PayloadSettingChanged -> handlePayloadSettingsChange(event.showPayload, event.binaryDecoding, event.payloadContent)
+            is TopicsScreenEvent.PayloadSettingChanged -> handlePayloadSettingsChange(event.showPayload, event.binaryDecoding, event.showJsonKeys, event.payloadContent)
             is TopicsScreenEvent.HighPriorityChanged -> handleHighPriorityChange(event.highPriority)
             is TopicsScreenEvent.IgnoreBedTimeChanged -> handleIgnoreBedTimeChange(event.ignoreBedTime)
             is TopicsScreenEvent.TTSTextChanged -> handleTTSTextChange(event.ttsText)
@@ -112,6 +112,7 @@ class TopicsScreenViewModel(
     private fun handlePayloadSettingsChange(
         showPayload: Boolean,
         binaryDecoding: Boolean,
+        showJsonKeys: Boolean,
         payloadContent: String
     ) {
         _manageTopicsFormState.update(
@@ -124,6 +125,11 @@ class TopicsScreenViewModel(
             binaryDecoding,
             { null }
         ) { copy(binaryEncoding = it) }
+        _manageTopicsFormState.update(
+            { it.showJsonKeys },
+            showJsonKeys,
+            { null }
+        ) { copy(showJsonKeys = it) }
         _manageTopicsFormState.update(
             { it.payloadContent },
             payloadContent,
@@ -204,6 +210,7 @@ class TopicsScreenViewModel(
                     topic = state.topic.value,
                     qos = state.qos.value ?: 2,
                     enabled = state.reference?.enabled ?: false,
+                    showJsonKeys = state.showJsonKeys.value,
                     payloadContent = if (state.showPayload.value) "${if (state.binaryEncoding.value) "b@" else ""}${state.payloadContent.value}" else null,
                     highPriority = state.highPriority.value,
                     ignoreBedTime = state.ignoreBedTime.value,
@@ -255,6 +262,7 @@ class TopicsScreenViewModel(
         handlePayloadSettingsChange(
             manageTopicsFormState.value.showPayload.value,
             manageTopicsFormState.value.binaryEncoding.value,
+            manageTopicsFormState.value.showJsonKeys.value,
             manageTopicsFormState.value.payloadContent.value
         )
         handleHighPriorityChange(manageTopicsFormState.value.highPriority.value)

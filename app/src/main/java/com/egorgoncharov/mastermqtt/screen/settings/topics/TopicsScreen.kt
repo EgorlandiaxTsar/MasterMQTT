@@ -366,6 +366,7 @@ fun TopicManage(state: ManageTopicsFormState, brokers: List<BrokerEntity>, onEve
                                     TopicsScreenEvent.PayloadSettingChanged(
                                         it,
                                         state.binaryEncoding.value,
+                                        state.showJsonKeys.value,
                                         state.payloadContent.value
                                     )
                                 )
@@ -386,6 +387,7 @@ fun TopicManage(state: ManageTopicsFormState, brokers: List<BrokerEntity>, onEve
                                         TopicsScreenEvent.PayloadSettingChanged(
                                             state.showPayload.value,
                                             it,
+                                            state.showJsonKeys.value,
                                             state.payloadContent.value
                                         )
                                     )
@@ -401,6 +403,26 @@ fun TopicManage(state: ManageTopicsFormState, brokers: List<BrokerEntity>, onEve
                                 )
                             }
                         }
+                        Row(
+                            modifier = Modifier.padding(top = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Switch(
+                                checked = state.showJsonKeys.value,
+                                onCheckedChange = {
+                                    onEvent(
+                                        TopicsScreenEvent.PayloadSettingChanged(
+                                            state.showPayload.value,
+                                            state.binaryEncoding.value,
+                                            it,
+                                            state.payloadContent.value
+                                        )
+                                    )
+                                }
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text("Show JSON keys in payload")
+                        }
                         OutlinedTextField(
                             value = state.payloadContent.value,
                             onValueChange = {
@@ -408,6 +430,7 @@ fun TopicManage(state: ManageTopicsFormState, brokers: List<BrokerEntity>, onEve
                                     TopicsScreenEvent.PayloadSettingChanged(
                                         state.showPayload.value,
                                         state.binaryEncoding.value,
+                                        state.showJsonKeys.value,
                                         it
                                     )
                                 )

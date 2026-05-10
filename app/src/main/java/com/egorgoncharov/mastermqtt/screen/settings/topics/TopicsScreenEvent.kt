@@ -11,6 +11,7 @@ sealed interface TopicsScreenEvent {
     data class PayloadSettingChanged(
         val showPayload: Boolean,
         val binaryDecoding: Boolean,
+        val showJsonKeys: Boolean,
         val payloadContent: String
     ) : TopicsScreenEvent
 

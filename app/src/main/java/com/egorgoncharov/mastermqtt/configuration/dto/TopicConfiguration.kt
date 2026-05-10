@@ -10,6 +10,7 @@ data class TopicConfiguration(
     @SerialName("topic") val topic: String,
     @SerialName("qos") val qos: Int,
     @SerialName("enabled") val enabled: Boolean,
+    @SerialName("showJsonKeys") val showJsonKeys: Boolean,
     @SerialName("payloadContent") val payloadContent: String?,
     @SerialName("highPriority") val highPriority: Boolean,
     @SerialName("ignoreBedTime") val ignoreBedTime: Boolean,

@@ -276,7 +276,7 @@ open class MqttManager(
         val payload = publish.payloadAsBytes
         val processed = processPayload(payload, topic.payloadContent)
         var processedDescription = ""
-        processed.forEach { (path, value) -> processedDescription += "${if (path.isNotEmpty()) "$path : " else ""}$value\n" }
+        processed.forEach { (path, value) -> processedDescription += "${if (path.isNotEmpty() && topic.showJsonKeys) "$path : " else ""}$value\n" }
         if (topic.payloadContent == null) processedDescription = ""
         if (processedDescription.endsWith("\n")) processedDescription = processedDescription.take(processedDescription.length - 1)
         val notification = MessageEntity(
