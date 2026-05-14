@@ -1,6 +1,7 @@
 package com.egorgoncharov.mastermqtt.screen.stream
 
 import android.annotation.SuppressLint
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,12 +18,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SwapHorizontalCircle
@@ -30,6 +33,8 @@ import androidx.compose.material.icons.filled.WifiTethering
 import androidx.compose.material.icons.filled.WifiTetheringError
 import androidx.compose.material.icons.filled.WifiTetheringOff
 import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -45,6 +50,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -84,7 +91,7 @@ fun StreamScreen(vm: StreamScreenViewModel, navController: NavHostController) {
     val streamSources by vm.topics.collectAsStateWithLifecycle(emptyList())
     val brokers by vm.brokers.collectAsStateWithLifecycle(emptyList())
     val messages by vm.messages.collectAsStateWithLifecycle(emptyList())
-    val mainSettingsProfile by vm.mainSettingProfile.collectAsStateWithLifecycle(SettingsProfileEntity.DUMMY)
+    val mainSettingsProfile by vm.mainSettingProfile.collectAsStateWithLifecycle(SettingsProfileEntity.DEFAULT)
 
     DisposableEffect(Unit) { onDispose { vm.onEvent(StreamScreenEvent.SelectedStreamChanged(null)) } }
     if (streamSourceState.selected != null) {
@@ -150,7 +157,6 @@ fun StatusTopBar(navController: NavHostController, settingsProfile: SettingsProf
         Text("Master MQTT", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium)
         Spacer(Modifier.weight(1f))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            /* TODO: Add safety button checks here */
             SafetyButton(interval = if (settingsProfile.settingsSafetyButtonEnabled) 750 else 1, onConfirmedClick = { showSettingsScreen = true }) {
                 Icon(Icons.Filled.Settings, contentDescription = "Settings")
             }
@@ -200,7 +206,7 @@ fun StatusTopBar(navController: NavHostController, settingsProfile: SettingsProf
 @SuppressLint("SimpleDateFormat")
 @Composable
 fun StreamSourceContainer(vm: StreamScreenViewModel, streamSource: TopicEntity) {
-    val settingsProfile by vm.mainSettingProfile.collectAsStateWithLifecycle(SettingsProfileEntity.DUMMY)
+    val settingsProfile by vm.mainSettingProfile.collectAsStateWithLifecycle(SettingsProfileEntity.DEFAULT)
     val messages by vm.messages.collectAsStateWithLifecycle(emptyList())
     val streamMessages = messages.filter { it.topicId == streamSource.id }
 
@@ -267,7 +273,19 @@ fun StreamSourceChat(vm: StreamScreenViewModel) {
         val maxDatetimeValid = if (streamFilterState.maxDatetime.value != null) it.date <= streamFilterState.maxDatetime.value!! else true
         it.topicId == streamChatState.selected?.id && queryValid && minDatetimeValid && maxDatetimeValid
     }
+    val listState = rememberLazyListState()
     DialogWindow(streamClearDialogState)
+    val isAtTop = remember {
+        derivedStateOf {
+            val firstItem = listState.layoutInfo.visibleItemsInfo.firstOrNull()
+            (firstItem?.index ?: 0) <= 1 && (firstItem?.offset ?: 0) > -200
+        }
+    }
+    LaunchedEffect(messages.size) {
+        if (isAtTop.value) {
+            listState.animateScrollToItem(0)
+        }
+    }
     Box(Modifier.fillMaxSize()) {
         Column(
             Modifier
@@ -275,14 +293,15 @@ fun StreamSourceChat(vm: StreamScreenViewModel) {
                 .padding(20.dp)
         ) {
             StreamSourceChatHeader(connections, streamChatState.selected!!, streamChatState.showProcessedContent) { vm.onEvent(it) }
-            StreamSourceChatFilters(streamFilterState) { vm.onEvent(it) }
             LazyColumn(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.weight(1f),
+                state = listState,
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(streamMessages, key = { it.id }) { StreamSourceChatMessage(it, streamChatState.showProcessedContent) }
                 if (streamMessages.isEmpty()) item { Empty() }
             }
+            StreamSourceChatFilters(streamFilterState) { vm.onEvent(it) }
         }
     }
 }
@@ -354,45 +373,79 @@ fun StreamSourceChatHeader(
             }
         }
     }
+    Spacer(Modifier.height(16.dp))
 }
 
 @Composable
 fun StreamSourceChatFilters(streamMessagesFilterState: StreamMessagesFilterState, onEvent: (StreamScreenEvent) -> Unit) {
-    var selectedStartDate by remember { mutableStateOf<LocalDate?>(null) }
-    var selectedEndDate by remember { mutableStateOf<LocalDate?>(null) }
-    var startQuarter by remember { mutableIntStateOf(0) }
-    var endQuarter by remember { mutableIntStateOf(96) }
+    var expanded by remember { mutableStateOf(false) }
+    var selectedStartDate by remember { mutableStateOf(streamMessagesFilterState.timeRangeMinDate.value) }
+    var selectedEndDate by remember { mutableStateOf(streamMessagesFilterState.timeRangeMaxDate.value) }
+    var startQuarter by remember { mutableIntStateOf(streamMessagesFilterState.timeRangeStartQuarter.value) }
+    var endQuarter by remember { mutableIntStateOf(streamMessagesFilterState.timeRangeEndQuarter.value) }
 
-    OutlinedTextField(
-        value = streamMessagesFilterState.query.value ?: "",
-        onValueChange = { onEvent(StreamScreenEvent.TextSearchFilterChanged(it)) },
-        label = { Text("Search text") },
-        placeholder = { Text("Query") },
-        trailingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-        modifier = Modifier.fillMaxWidth()
-    )
-    Spacer(Modifier.height(5.dp))
-    StreamDateTimeFilter(
-        onStartDateSelected = { date ->
-            selectedStartDate = date
-            val timestamp = combineDateAndTime(date, startQuarter)
-            onEvent(StreamScreenEvent.MinDatetimeFilterChanged(timestamp))
-        },
-        onEndDateSelected = { date ->
-            selectedEndDate = date
-            val timestamp = combineDateAndTime(date, endQuarter)
-            onEvent(StreamScreenEvent.MaxDatetimeFilterChanged(timestamp))
-        },
-        onTimeRangeChanged = { start, end ->
-            startQuarter = start
-            endQuarter = end
-            val minTs = combineDateAndTime(selectedStartDate, start)
-            val maxTs = combineDateAndTime(selectedEndDate, end, selectedStartDate)
-            onEvent(StreamScreenEvent.MinDatetimeFilterChanged(minTs))
-            onEvent(StreamScreenEvent.MaxDatetimeFilterChanged(maxTs))
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(color = Color.Unspecified, shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .animateContentSize()
+        ) {
+            if (expanded) {
+                OutlinedTextField(
+                    value = streamMessagesFilterState.query.value ?: "",
+                    onValueChange = { onEvent(StreamScreenEvent.TextSearchFilterChanged(it)) },
+                    label = { Text("Search text") },
+                    placeholder = { Text("Query") },
+                    trailingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(5.dp))
+                StreamDateTimeFilter(
+                    fromDate = selectedStartDate,
+                    toDate = selectedEndDate,
+                    startQuarter = startQuarter,
+                    endQuarter = endQuarter,
+                    onStartDateSelected = { date ->
+                        selectedStartDate = date
+                        val timestamp = combineDateAndTime(date, startQuarter)
+                        onEvent(StreamScreenEvent.MinDatetimeFilterChanged(timestamp))
+                        onEvent(StreamScreenEvent.TimeRangeMinDateChanged(date))
+                    },
+                    onEndDateSelected = { date ->
+                        selectedEndDate = date
+                        val timestamp = combineDateAndTime(date, endQuarter)
+                        onEvent(StreamScreenEvent.MaxDatetimeFilterChanged(timestamp))
+                        onEvent(StreamScreenEvent.TimeRangeMaxDateChanged(date))
+                    },
+                    onTimeRangeChanged = { start, end ->
+                        startQuarter = start
+                        endQuarter = end
+                        val minTs = combineDateAndTime(selectedStartDate, start)
+                        val maxTs = combineDateAndTime(selectedEndDate, end, selectedStartDate)
+                        onEvent(StreamScreenEvent.MinDatetimeFilterChanged(minTs))
+                        onEvent(StreamScreenEvent.MaxDatetimeFilterChanged(maxTs))
+                        onEvent(StreamScreenEvent.TimeRangeStartQuarterChanged(start))
+                        onEvent(StreamScreenEvent.TimeRangeEndQuarterChanged(end))
+                    }
+                )
+            }
         }
-    )
-    Spacer(Modifier.height(16.dp))
+        Button(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 15.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary, contentColor = MaterialTheme.colorScheme.onTertiary),
+            onClick = { expanded = !expanded }
+        ) {
+            Icon(modifier = Modifier.size(24.dp), imageVector = Icons.Filled.FilterAlt, contentDescription = null)
+            Spacer(Modifier.width(10.dp))
+            Text(if (expanded) "Hide" else "Show")
+        }
+    }
 }
 
 @Composable
@@ -402,7 +455,7 @@ fun StreamSourceChatMessage(message: MessageEntity, displayProcessedMessage: Boo
         horizontalAlignment = if (true /* TODO: Check if message was received (start) or sent (end) */) Alignment.Start else Alignment.End
     ) {
         Card(
-            modifier = Modifier.fillMaxWidth(0.75f),
+            modifier = Modifier.fillMaxWidth(1.0f /* 0.75f */),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
         ) {
             Box(

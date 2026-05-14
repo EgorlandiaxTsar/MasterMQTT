@@ -35,7 +35,9 @@ import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MonitorHeart
+import androidx.compose.material.icons.filled.Numbers
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.SystemSecurityUpdateWarning
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.WifiTethering
@@ -335,7 +337,12 @@ fun BrokerBody(connection: MqttConnection) {
         ItemProperty(
             "Alert When Disconnected",
             if (connection.broker.alertWhenDisconnected) "Yes" else "No",
-            Icons.Filled.CleaningServices
+            Icons.Filled.SystemSecurityUpdateWarning
+        )
+        ItemProperty(
+            "Alert Disconnects Threshold",
+            "${connection.broker.alertDisconnectsThreshold ?: "None"}",
+            Icons.Filled.Numbers
         )
         ItemProperty(
             "Clean Start",
@@ -489,6 +496,17 @@ fun BrokerManage(state: ManageBrokerFormState, onEvent: (BrokersScreenEvent) -> 
                         Spacer(Modifier.width(10.dp))
                         Text("Alert When Disconnected")
                     }
+                    if (state.alertWhenDisconnected.value) {
+                        OutlinedTextField(
+                            value = if (state.alertDisconnectsThreshold.value == null) "" else state.alertDisconnectsThreshold.value.toString(),
+                            onValueChange = { onEvent(BrokersScreenEvent.AlertDisconnectsThresholdChanged(it)) },
+                            label = { Text("Alert Disconnects Threshold") },
+                            isError = state.alertDisconnectsThreshold.errorMsg != null,
+                            supportingText = { if (state.alertDisconnectsThreshold.errorMsg != null) Text(state.alertDisconnectsThreshold.errorMsg) },
+                            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None, keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Switch(
                             checked = state.infiniteReconnects.value,
@@ -539,7 +557,6 @@ fun BrokerManage(state: ManageBrokerFormState, onEvent: (BrokersScreenEvent) -> 
                         keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None, keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
-
                 }
             }
             item {
@@ -568,7 +585,7 @@ fun BrokerManage(state: ManageBrokerFormState, onEvent: (BrokersScreenEvent) -> 
                             label = { Text("Messages Expiry Interval (s)") },
                             isError = state.sessionExpiryInterval.errorMsg != null,
                             supportingText = { if (state.sessionExpiryInterval.errorMsg != null) Text(state.sessionExpiryInterval.errorMsg) },
-                            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None),
+                            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None, keyboardType = KeyboardType.Number),
                             modifier = Modifier.fillMaxWidth()
                         )
                     }

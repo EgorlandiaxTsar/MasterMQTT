@@ -2,7 +2,6 @@ package com.egorgoncharov.mastermqtt.screen.settings.topics
 
 import com.egorgoncharov.mastermqtt.model.entity.BrokerEntity
 import com.egorgoncharov.mastermqtt.model.entity.TopicEntity
-import com.egorgoncharov.mastermqtt.model.types.ConnectionType
 import com.egorgoncharov.mastermqtt.ui.components.EntityManagingFormState
 import com.egorgoncharov.mastermqtt.ui.components.FormFieldState
 
@@ -10,26 +9,7 @@ data class ManageTopicsFormState(
     override val visible: Boolean = false,
     override val reference: TopicEntity? = null,
     val exists: Boolean = false,
-    val broker: FormFieldState<BrokerEntity> = FormFieldState(
-        BrokerEntity(
-            id = reference?.brokerId ?: "",
-            name = "Choose topic's broker",
-            host = "0.0.0.0",
-            port = 0,
-            authUser = null,
-            authPassword = null,
-            connectionType = ConnectionType.TCP,
-            alertWhenDisconnected = true,
-            clientId = "",
-            keepAliveInterval = 0,
-            cleanStart = true,
-            reconnectAttempts = null,
-            reconnectInterval = 0,
-            sessionExpiryInterval = 0,
-            connected = false,
-            displayIndex = 0
-        )
-    ),
+    val broker: FormFieldState<BrokerEntity> = FormFieldState(BrokerEntity.DEFAULT),
     val name: FormFieldState<String> = FormFieldState(reference?.name ?: ""),
     val topic: FormFieldState<String> = FormFieldState(reference?.topic ?: ""),
     val qos: FormFieldState<Int?> = FormFieldState(reference?.qos ?: 2),

@@ -11,6 +11,7 @@ data class BrokerConfiguration(
     @SerialName("authentication") val authentication: String?, // User + Password
     @SerialName("clientId") val clientId: String,
     @SerialName("alertWhenDisconnected") val alertWhenDisconnected: Boolean,
+    @SerialName("alertDisconnectsThreshold") val alertDisconnectsThreshold: Int?,
     @SerialName("keepAliveInterval") val keepAliveInterval: Int,
     @SerialName("cleanStart") val cleanStart: Boolean,
     @SerialName("reconnectAttempts") val reconnectAttempts: Int?,

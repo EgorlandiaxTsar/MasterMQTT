@@ -76,6 +76,7 @@ open class NotificationManager(protected val context: Context) {
     fun show(broker: BrokerEntity, topic: TopicEntity, description: String) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val targetChannelId = if (topic.ignoreBedTime) channelMap["max"] else if (topic.highPriority) channelMap["high"] else channelMap["low"]
+        val notificationTag = topic.id
         val notificationId = System.currentTimeMillis().toInt()
         val intent = Intent(Intent.ACTION_VIEW, "mastermqtt://stream?topicId=${topic.id}".toUri()).apply { `package` = context.packageName }
         val pendingIntent = TaskStackBuilder.create(context).run {
@@ -89,7 +90,7 @@ open class NotificationManager(protected val context: Context) {
             .setStyle(NotificationCompat.BigTextStyle())
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
-        notificationManager.notify(notificationId, builder.build())
+        notificationManager.notify(notificationTag, notificationId, builder.build())
     }
 
     fun showDisconnectAlert(description: String) {
@@ -97,6 +98,15 @@ open class NotificationManager(protected val context: Context) {
             putExtra(MqttService.EXTRA_DISCONNECT_MESSAGE, description)
         }
         ContextCompat.startForegroundService(context, intent)
+    }
+
+    fun dismissTopicNotifications(topicId: String) {
+        val activeNotifications = notificationManager.activeNotifications
+        activeNotifications.forEach { statusBarNotification ->
+            if (statusBarNotification.tag == topicId) {
+                notificationManager.cancel(statusBarNotification.tag, statusBarNotification.id)
+            }
+        }
     }
 
     fun dismissAlert() {

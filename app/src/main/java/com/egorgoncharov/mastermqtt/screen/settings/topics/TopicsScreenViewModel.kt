@@ -178,7 +178,7 @@ class TopicsScreenViewModel(
         try {
             if (manageTopicsFormState.value.notificationSound.value.isNotBlank()) {
                 viewModelScope.launch {
-                    soundManager.playSound(manageTopicsFormState.value.notificationSound.value, manageTopicsFormState.value.notificationSoundLevel.value, highPriority = true, bypassDnd = true)
+                    soundManager.playSound(manageTopicsFormState.value.notificationSound.value, manageTopicsFormState.value.notificationSoundLevel.value, highPriority = true, bypassDnd = true, requireAudiofocus = false)
                 }
             }
         } catch (_: Exception) {

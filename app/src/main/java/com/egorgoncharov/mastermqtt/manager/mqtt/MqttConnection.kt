@@ -9,5 +9,6 @@ data class MqttConnection(
     val broker: BrokerEntity,
     val client: Mqtt5AsyncClient,
     val state: MqttConnectionState,
-    val subscriptions: MutableList<TopicEntity> = mutableListOf()
+    val subscriptions: MutableList<TopicEntity> = mutableListOf(),
+    val currentReconnectRetries: Int = 0
 )

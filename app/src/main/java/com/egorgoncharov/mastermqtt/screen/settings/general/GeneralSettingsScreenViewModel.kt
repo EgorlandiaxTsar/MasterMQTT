@@ -7,8 +7,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.egorgoncharov.mastermqtt.R
 import com.egorgoncharov.mastermqtt.configuration.ConfigurationEntityConverter
 import com.egorgoncharov.mastermqtt.manager.ConfigurationManager
+import com.egorgoncharov.mastermqtt.manager.SoundManager
 import com.egorgoncharov.mastermqtt.model.dao.BrokerDao
 import com.egorgoncharov.mastermqtt.model.dao.SettingsProfileDao
 import com.egorgoncharov.mastermqtt.model.dao.TopicDao
@@ -26,13 +28,14 @@ class GeneralSettingsScreenViewModel(
     private val brokerDao: BrokerDao,
     topicDao: TopicDao,
     private val settingsProfileDao: SettingsProfileDao,
+    private val soundManager: SoundManager,
     private val configurationManager: ConfigurationManager,
     private val configurationConverter: ConfigurationEntityConverter
 ) : ViewModel() {
     companion object {
-        fun Factory(brokerDao: BrokerDao, topicDao: TopicDao, settingsProfileDao: SettingsProfileDao, configurationManager: ConfigurationManager, configurationEntityConverter: ConfigurationEntityConverter): ViewModelProvider.Factory =
+        fun Factory(brokerDao: BrokerDao, topicDao: TopicDao, settingsProfileDao: SettingsProfileDao, soundManager: SoundManager, configurationManager: ConfigurationManager, configurationEntityConverter: ConfigurationEntityConverter): ViewModelProvider.Factory =
             viewModelFactory {
-                initializer { GeneralSettingsScreenViewModel(brokerDao, topicDao, settingsProfileDao, configurationManager, configurationEntityConverter) }
+                initializer { GeneralSettingsScreenViewModel(brokerDao, topicDao, settingsProfileDao, soundManager, configurationManager, configurationEntityConverter) }
             }
     }
 
@@ -64,6 +67,9 @@ class GeneralSettingsScreenViewModel(
             is GeneralSettingsScreenEvent.SafetyButtonEnabledChanged -> handleSafetyButtonEnabledChange(event.enabled)
             is GeneralSettingsScreenEvent.ShowTopicRouteInStreamChanged -> handleShowTopicRouteInStreamChanged(event.enabled)
             is GeneralSettingsScreenEvent.ThemeOptionChanged -> handleThemeOptionChange(event.theme)
+            is GeneralSettingsScreenEvent.RecalibrateNotificationSoundLevelChanged -> handleRecalibrateNotificationSoundLevelChange(event.enabled)
+            is GeneralSettingsScreenEvent.DisconnectAlertSoundLevelChanged -> handleDisconnectAlertSoundLevelChange(event.disconnectAlertSoundLevel)
+            is GeneralSettingsScreenEvent.PlayDisconnectAlertSound -> playDisconnectAlertSound(event.soundLevel)
             is GeneralSettingsScreenEvent.TTSLanguageChanged -> handleTTSLanguageChange(event.ttsLanguage)
             is GeneralSettingsScreenEvent.DefaultMessageAgeChanged -> handleDefaultMessageAgeChange(event.defaultMessageAge)
             is GeneralSettingsScreenEvent.ToggleConfigurationExportForm -> toggleConfigurationExportForm()
@@ -94,6 +100,30 @@ class GeneralSettingsScreenViewModel(
         viewModelScope.launch {
             val mainSettingsProfile = settingsProfileDao.getMainSettingsProfile() ?: return@launch
             settingsProfileDao.save(mainSettingsProfile.copy(theme = theme))
+        }
+    }
+
+    private fun handleRecalibrateNotificationSoundLevelChange(recalibrate: Boolean) {
+        viewModelScope.launch {
+            val mainSettingsProfile = settingsProfileDao.getMainSettingsProfile() ?: return@launch
+            settingsProfileDao.save(mainSettingsProfile.copy(recalibrateNotificationSoundLevel = recalibrate))
+        }
+    }
+
+    private fun handleDisconnectAlertSoundLevelChange(soundLevel: Double) {
+        viewModelScope.launch {
+            val mainSettingProfile = settingsProfileDao.getMainSettingsProfile() ?: return@launch
+            settingsProfileDao.save(mainSettingProfile.copy(disconnectAlertSoundLevel = soundLevel))
+        }
+    }
+
+    private fun playDisconnectAlertSound(soundLevel: Double) {
+        try {
+            viewModelScope.launch {
+                soundManager.playSound(R.raw.disconnected_sound, soundLevel, highPriority = true, bypassDnd = true, requireAudiofocus = false)
+                soundManager.playSound(R.raw.reconnected_sound, soundLevel, highPriority = true, bypassDnd = true, requireAudiofocus = false)
+            }
+        } catch (_: Exception) {
         }
     }
 

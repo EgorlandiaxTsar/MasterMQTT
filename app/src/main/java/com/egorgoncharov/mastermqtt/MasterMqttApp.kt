@@ -35,7 +35,7 @@ class MasterMqttApp : Application() {
             notificationManager,
             soundManager
         )
-        alertManager = DisconnectAlertManager(mqttManager, notificationManager, soundManager)
+        alertManager = DisconnectAlertManager(db.settingsProfilesDao(), mqttManager, notificationManager, soundManager)
         storageManager = StorageManager(applicationContext)
         configurationEntityConverter = ConfigurationEntityConverter(db.brokerDao(), db.topicDao())
         configurationManager = ConfigurationManager(applicationContext, db.brokerDao(), db.topicDao(), db.messageDao(), storageManager, configurationEntityConverter)

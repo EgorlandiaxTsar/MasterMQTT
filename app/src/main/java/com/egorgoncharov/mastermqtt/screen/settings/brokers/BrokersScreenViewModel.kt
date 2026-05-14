@@ -59,9 +59,9 @@ class BrokersScreenViewModel(
                 event.user,
                 event.password
             )
-
             is BrokersScreenEvent.ConnectionTypeChanged -> handleConnectionTypeChange(event.connectionType)
-            is BrokersScreenEvent.AlertWhenDisconnectedChanged -> handleAlertWhenDisconnectedChanged(event.alertWhenDisconnected)
+            is BrokersScreenEvent.AlertWhenDisconnectedChanged -> handleAlertWhenDisconnectedChange(event.alertWhenDisconnected)
+            is BrokersScreenEvent.AlertDisconnectsThresholdChanged -> handleAlertDisconnectsThresholdChange(event.alertDisconnectsThreshold)
             is BrokersScreenEvent.ClientIdChanged -> handleClientIdChange(event.clientId)
             is BrokersScreenEvent.KeepAliveIntervalChanged -> handleKeepAliveIntervalChange(event.keepAliveInterval)
             is BrokersScreenEvent.CleanStartChanged -> handleCleanStartChange(event.cleanStart)
@@ -127,11 +127,27 @@ class BrokersScreenViewModel(
         { null }
     ) { copy(connectionType = it) }
 
-    private fun handleAlertWhenDisconnectedChanged(alertWhenDisconnected: Boolean) = _manageBrokerFormState.update(
-        { it.alertWhenDisconnected },
-        alertWhenDisconnected,
-        { null }
-    ) { copy(alertWhenDisconnected = it) }
+    private fun handleAlertWhenDisconnectedChange(alertWhenDisconnected: Boolean, updateLinkedFieldsErrors: Boolean = true) {
+        _manageBrokerFormState.update(
+            { it.alertWhenDisconnected },
+            alertWhenDisconnected,
+            { null }
+        ) { copy(alertWhenDisconnected = it) }
+        if (updateLinkedFieldsErrors) updateManageFormErrors()
+    }
+
+    private fun handleAlertDisconnectsThresholdChange(alertDisconnectsThreshold: String) = _manageBrokerFormState.update(
+        { it.alertDisconnectsThreshold },
+        if (alertDisconnectsThreshold.isBlank()) null else alertDisconnectsThreshold.toIntOrNull(),
+        {
+            validateNumericalInput(
+                alertDisconnectsThreshold,
+                !manageBrokerFormState.value.alertWhenDisconnected.value,
+                0.0,
+                Utils.MAX_INPUT_NUMBER.toDouble()
+            )
+        }
+    ) { copy(alertDisconnectsThreshold = it.copy(value = it.value?.coerceIn(0, Utils.MAX_INPUT_NUMBER))) }
 
     private fun handleClientIdChange(clientId: String) = _manageBrokerFormState.update(
         { it.clientId },
@@ -202,13 +218,14 @@ class BrokersScreenViewModel(
                     authPassword = if (state.authenticated.value) state.authPassword.value else null,
                     connectionType = state.connectionType.value,
                     alertWhenDisconnected = state.alertWhenDisconnected.value,
+                    alertDisconnectsThreshold = state.alertDisconnectsThreshold.value,
                     clientId = state.clientId.value,
                     keepAliveInterval = state.keepAliveInterval.value!!,
                     cleanStart = state.cleanStart.value,
                     reconnectAttempts = if (state.infiniteReconnects.value) null else state.reconnectAttempts.value,
                     reconnectInterval = state.reconnectInterval.value!!,
                     sessionExpiryInterval = if (state.cleanStart.value) null else state.sessionExpiryInterval.value,
-                    connected = false,
+                    connected = state.reference?.connected ?: false,
                     displayIndex = 0
                 )
             )
@@ -241,6 +258,8 @@ class BrokersScreenViewModel(
             manageBrokerFormState.value.authPassword.value
         )
         handleConnectionTypeChange(manageBrokerFormState.value.connectionType.value)
+        handleAlertWhenDisconnectedChange(manageBrokerFormState.value.alertWhenDisconnected.value, false)
+        handleAlertDisconnectsThresholdChange(manageBrokerFormState.value.alertDisconnectsThreshold.value.toString())
         handleClientIdChange(manageBrokerFormState.value.clientId.value)
         handleKeepAliveIntervalChange(manageBrokerFormState.value.keepAliveInterval.value.toString())
         handleCleanStartChange(manageBrokerFormState.value.cleanStart.value, false)
@@ -259,7 +278,8 @@ class BrokersScreenViewModel(
     }
 
     private fun toggleConnection(connection: MqttConnection) {
-        if (connection.state == MqttConnectionState.CONNECTED) mqttManager.disconnect(connection.broker)
+        if (connection.state == MqttConnectionState.INTERMEDIATE) return
+        if (connection.state in listOf(MqttConnectionState.CONNECTED, MqttConnectionState.RECONNECTING)) mqttManager.disconnect(connection.broker)
         else mqttManager.connect(connection.broker)
     }
 

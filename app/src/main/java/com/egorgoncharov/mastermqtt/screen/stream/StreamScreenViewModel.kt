@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.egorgoncharov.mastermqtt.manager.NotificationManager
 import com.egorgoncharov.mastermqtt.manager.mqtt.MqttManager
 import com.egorgoncharov.mastermqtt.model.dao.BrokerDao
 import com.egorgoncharov.mastermqtt.model.dao.MessageDao
@@ -19,13 +20,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 class StreamScreenViewModel(
     brokerDao: BrokerDao,
     private val topicDao: TopicDao,
     private val messageDao: MessageDao,
     settingsProfileDao: SettingsProfileDao,
-    mqttManager: MqttManager
+    mqttManager: MqttManager,
+    private val notificationManager: NotificationManager
 ) : ViewModel() {
     companion object {
         fun Factory(
@@ -33,10 +36,11 @@ class StreamScreenViewModel(
             topicDao: TopicDao,
             messageDao: MessageDao,
             settingsProfileDao: SettingsProfileDao,
-            mqttManager: MqttManager
+            mqttManager: MqttManager,
+            notificationManager: NotificationManager
         ): ViewModelProvider.Factory =
             viewModelFactory {
-                initializer { StreamScreenViewModel(brokerDao, topicDao, messageDao, settingsProfileDao, mqttManager) }
+                initializer { StreamScreenViewModel(brokerDao, topicDao, messageDao, settingsProfileDao, mqttManager, notificationManager) }
             }
     }
 
@@ -61,6 +65,10 @@ class StreamScreenViewModel(
             is StreamScreenEvent.MinDatetimeFilterChanged -> handleMinDatetimeFilterChange(event.min)
             is StreamScreenEvent.MaxDatetimeFilterChanged -> handleMaxDatetimeFilterChange(event.max)
             is StreamScreenEvent.TextSearchFilterChanged -> handleTextSearchFilterChange(event.query)
+            is StreamScreenEvent.TimeRangeMinDateChanged -> handleTimeRangeMinDateChange(event.minDate)
+            is StreamScreenEvent.TimeRangeMaxDateChanged -> handleTimeRangeMaxDateChange(event.maxDate)
+            is StreamScreenEvent.TimeRangeStartQuarterChanged -> handleTimeRangeStartQuarterChange(event.startQuarter)
+            is StreamScreenEvent.TimeRangeEndQuarterChanged -> handleTimeRangeEndQuarterChange(event.endQuarter)
             is StreamScreenEvent.SelectedStreamChanged -> selectStream(event.streamSource)
             is StreamScreenEvent.ToggleStreamDisplayOriginalMessageOption -> toggleStreamDisplayOriginalMessageOption()
             is StreamScreenEvent.ToggleStreamClearDialog -> toggleStreamClearDialog()
@@ -92,10 +100,35 @@ class StreamScreenViewModel(
         { null }
     ) { copy(query = it) }
 
+    private fun handleTimeRangeMinDateChange(minDate: LocalDate?) = _streamMessagesFilterState.update(
+        { it.timeRangeMinDate },
+        minDate,
+        { null }
+    ) { copy(timeRangeMinDate = it) }
+
+    private fun handleTimeRangeMaxDateChange(maxDate: LocalDate?) = _streamMessagesFilterState.update(
+        { it.timeRangeMaxDate },
+        maxDate,
+        { null }
+    ) { copy(timeRangeMaxDate = it) }
+
+    private fun handleTimeRangeStartQuarterChange(startQuarter: Int) = _streamMessagesFilterState.update(
+        { it.timeRangeStartQuarter },
+        startQuarter,
+        { null }
+    ) { copy(timeRangeStartQuarter = it) }
+
+    private fun handleTimeRangeEndQuarterChange(endQuarter: Int) = _streamMessagesFilterState.update(
+        { it.timeRangeEndQuarter },
+        endQuarter,
+        { null }
+    ) { copy(timeRangeEndQuarter = it) }
+
     private fun selectStream(streamSource: TopicEntity?) {
         _streamChatState.update { it.copy(selected = streamSource) }
         readTrackingJob?.cancel()
         if (streamSource != null) {
+            notificationManager.dismissTopicNotifications(streamSource.id)
             readTrackingJob = viewModelScope.launch {
                 messages.collect { allMessages ->
                     val latestMessage = allMessages

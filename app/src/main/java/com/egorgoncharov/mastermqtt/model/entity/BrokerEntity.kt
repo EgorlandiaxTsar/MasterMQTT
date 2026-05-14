@@ -15,6 +15,7 @@ data class BrokerEntity(
     @ColumnInfo("authPassword") val authPassword: String?,
     @ColumnInfo("connectionType") val connectionType: ConnectionType,
     @ColumnInfo("alertWhenDisconnected") val alertWhenDisconnected: Boolean,
+    @ColumnInfo("alertDisconnectsThreshold") val alertDisconnectsThreshold: Int?,
     @ColumnInfo("clientId") val clientId: String,
     @ColumnInfo("keepAliveInterval") val keepAliveInterval: Int,
     @ColumnInfo("cleanStart") val cleanStart: Boolean,
@@ -24,6 +25,27 @@ data class BrokerEntity(
     @ColumnInfo("connected") val connected: Boolean,
     @ColumnInfo("displayIndex") val displayIndex: Int
 ) {
+    companion object {
+        val DEFAULT = BrokerEntity(
+            "",
+            "",
+            "0.0.0.0",
+            1883,
+            null,
+            null,
+            ConnectionType.TCP,
+            false,
+            null,
+            "",
+            0,
+            true,
+            null,
+            0,
+            null,
+            false,
+            0
+        )
+    }
 
     fun address(includeProtocol: Boolean = false) = (if (includeProtocol) "${connectionType.name.lowercase()}://" else "") + "$host:$port"
 }

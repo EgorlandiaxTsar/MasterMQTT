@@ -3,6 +3,8 @@ package com.egorgoncharov.mastermqtt.manager
 import com.egorgoncharov.mastermqtt.R
 import com.egorgoncharov.mastermqtt.manager.mqtt.MqttConnection
 import com.egorgoncharov.mastermqtt.manager.mqtt.MqttManager
+import com.egorgoncharov.mastermqtt.model.dao.SettingsProfileDao
+import com.egorgoncharov.mastermqtt.model.entity.SettingsProfileEntity
 import com.egorgoncharov.mastermqtt.model.types.MqttConnectionState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -14,23 +16,32 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class DisconnectAlertManager(
+    private val settingsProfileDao: SettingsProfileDao,
     private val mqttManager: MqttManager,
     private val notificationManager: NotificationManager,
     private val soundManager: SoundManager
 ) {
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val settingsFlow = settingsProfileDao.streamMainSettingsProfile()
+    private var currentSettingsProfile: SettingsProfileEntity = SettingsProfileEntity.DEFAULT
     private var isDiscardedManually = false
     private var previouslyFailingIds = emptySet<String>()
     private var pingJob: Job? = null
 
     init {
         startMonitoring()
+        scope.launch {
+            settingsFlow.collect { mainSettingsProfile ->
+                if (mainSettingsProfile == null) return@collect
+                currentSettingsProfile = mainSettingsProfile
+            }
+        }
     }
 
     private fun startMonitoring() {
         scope.launch {
             mqttManager.clientsFlow.collectLatest { clientsMap ->
-                val failingBrokers = clientsMap.values.filter { (it.state == MqttConnectionState.RECONNECTING || it.state == MqttConnectionState.DISCONNECTED_FAILED) && it.broker.alertWhenDisconnected }
+                val failingBrokers = clientsMap.values.filter { (it.state == MqttConnectionState.RECONNECTING || it.state == MqttConnectionState.DISCONNECTED_FAILED) && it.broker.alertWhenDisconnected && it.currentReconnectRetries > (it.broker.alertDisconnectsThreshold ?: 0) }
                 val currentFailingIds = failingBrokers.map { it.broker.id }.toSet()
                 val newFailures = currentFailingIds - previouslyFailingIds
                 if (newFailures.isNotEmpty()) isDiscardedManually = false
@@ -51,7 +62,7 @@ class DisconnectAlertManager(
         if (pingJob == null || !pingJob!!.isActive) {
             pingJob = scope.launch {
                 while (isActive) {
-                    soundManager.playSound(R.raw.disconnected_sound, highPriority = true, bypassDnd = true)
+                    soundManager.playSound(R.raw.disconnected_sound, highPriority = true, bypassDnd = true, volume = currentSettingsProfile.disconnectAlertSoundLevel)
                     delay(1000)
                 }
             }
@@ -69,7 +80,7 @@ class DisconnectAlertManager(
         notificationManager.dismissAlert()
         if (playSuccessSound) {
             scope.launch {
-                soundManager.playSound(R.raw.reconnected_sound, highPriority = true, bypassDnd = true)
+                soundManager.playSound(R.raw.reconnected_sound, highPriority = true, bypassDnd = true, volume = currentSettingsProfile.disconnectAlertSoundLevel)
             }
         }
     }

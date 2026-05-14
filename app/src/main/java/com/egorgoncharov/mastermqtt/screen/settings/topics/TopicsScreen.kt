@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.CellTower
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.FolderCopy
@@ -60,6 +61,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
@@ -224,6 +226,11 @@ fun TopicBody(topic: TopicEntity) {
         ItemProperty(
             "Notification TTS Text", topic.notificationSoundText ?: "None",
             Icons.Filled.SpatialAudio
+        )
+        ItemProperty(
+            "Show JSON Keys In Payload",
+            if (topic.showJsonKeys) "Yes" else "No",
+            Icons.Filled.Code
         )
         ItemProperty(
             "Notification Body",
@@ -480,25 +487,25 @@ fun TopicManage(state: ManageTopicsFormState, brokers: List<BrokerEntity>, onEve
                         modifier = Modifier.fillMaxWidth()
                     )
                     AudioPicker(state.reference?.notificationSoundPath ?: "") { onEvent(TopicsScreenEvent.NotificationSoundChanged(it)) }
-                    if (state.notificationSound.value.isNotBlank()) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp)
-                        ) {
-                            Slider(
-                                value = state.notificationSoundLevel.value.toFloat(),
-                                onValueChange = { onEvent(TopicsScreenEvent.NotificationSoundLevelChanged(it.toDouble())) },
-                                onValueChangeFinished = { onEvent(TopicsScreenEvent.PlayNotificationSound) },
-                                valueRange = 0f..1.0f,
-                                steps = 19,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Text(
-                                text = "Volume ${round(state.notificationSoundLevel.value * 100).toInt()}%",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp)
+                    ) {
+                        Slider(
+                            value = state.notificationSoundLevel.value.toFloat(),
+                            onValueChange = { onEvent(TopicsScreenEvent.NotificationSoundLevelChanged(it.toDouble())) },
+                            onValueChangeFinished = { onEvent(TopicsScreenEvent.PlayNotificationSound) },
+                            valueRange = 0f..1.0f,
+                            steps = 19,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Text(
+                            modifier = Modifier.fillMaxWidth(),
+                            text = "${round(state.notificationSoundLevel.value * 100).toInt()}%",
+                            style = MaterialTheme.typography.bodySmall,
+                            textAlign = TextAlign.Center
+                        )
                     }
                 }
             }

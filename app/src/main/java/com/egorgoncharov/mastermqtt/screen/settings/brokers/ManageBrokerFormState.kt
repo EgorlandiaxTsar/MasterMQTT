@@ -20,6 +20,7 @@ data class ManageBrokerFormState(
         reference?.connectionType ?: ConnectionType.TCP
     ),
     val alertWhenDisconnected: FormFieldState<Boolean> = FormFieldState(reference?.alertWhenDisconnected ?: false),
+    val alertDisconnectsThreshold: FormFieldState<Int?> = FormFieldState(reference?.alertDisconnectsThreshold ?: 2),
     val clientId: FormFieldState<String> = FormFieldState(
         reference?.clientId ?: UUID.randomUUID().toString().take(6)
     ),
@@ -30,5 +31,5 @@ data class ManageBrokerFormState(
     val reconnectInterval: FormFieldState<Int?> = FormFieldState(reference?.reconnectInterval ?: 10),
     val sessionExpiryInterval: FormFieldState<Int?> = FormFieldState(reference?.sessionExpiryInterval ?: 86400)
 ) : EntityManagingFormState<BrokerEntity>() {
-    override fun valid(): Boolean = listOf(name, host, port, authenticated, authUser, authPassword, connectionType, clientId, keepAliveInterval, cleanStart, infiniteReconnects, reconnectAttempts, sessionExpiryInterval).all { it.errorMsg == null }
+    override fun valid(): Boolean = listOf(name, host, port, authenticated, authUser, authPassword, connectionType, alertWhenDisconnected, alertDisconnectsThreshold, clientId, keepAliveInterval, cleanStart, infiniteReconnects, reconnectAttempts, sessionExpiryInterval).all { it.errorMsg == null }
 }

@@ -17,6 +17,7 @@ class ConfigurationEntityConverter(private val brokerDao: BrokerDao, private val
             clientId = UUID.randomUUID().toString().take(6), /* broker.clientId */
             keepAliveInterval = broker.keepAliveInterval,
             alertWhenDisconnected = broker.alertWhenDisconnected,
+            alertDisconnectsThreshold = broker.alertDisconnectsThreshold,
             cleanStart = broker.cleanStart,
             reconnectAttempts = broker.reconnectAttempts,
             reconnectInterval = broker.reconnectInterval,
@@ -36,6 +37,7 @@ class ConfigurationEntityConverter(private val brokerDao: BrokerDao, private val
             authPassword = brokerConfiguration.authenticationPassword(),
             connectionType = brokerConfiguration.connectionType(),
             alertWhenDisconnected = brokerConfiguration.alertWhenDisconnected,
+            alertDisconnectsThreshold = brokerConfiguration.alertDisconnectsThreshold,
             clientId = brokerConfiguration.clientId,
             keepAliveInterval = brokerConfiguration.keepAliveInterval,
             cleanStart = brokerConfiguration.cleanStart,

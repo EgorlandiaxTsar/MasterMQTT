@@ -21,15 +21,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesomeMotion
 import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.FolderCopy
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Nightlight
+import androidx.compose.material.icons.filled.Numbers
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material.icons.filled.SpatialAudio
+import androidx.compose.material.icons.filled.SystemSecurityUpdateWarning
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Upload
@@ -43,6 +46,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -51,6 +55,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetValue
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -58,6 +63,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -67,6 +73,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
@@ -84,11 +91,12 @@ import com.egorgoncharov.mastermqtt.ui.components.Error
 import com.egorgoncharov.mastermqtt.ui.components.FilePicker
 import com.egorgoncharov.mastermqtt.ui.components.ItemProperty
 import com.egorgoncharov.mastermqtt.ui.components.SettingsTopBar
+import kotlin.math.round
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GeneralSettingsScreen(vm: GeneralSettingsScreenViewModel, navController: NavHostController) {
-    val settingsProfile by vm.mainSettingProfile.collectAsStateWithLifecycle(SettingsProfileEntity.DUMMY)
+    val settingsProfile by vm.mainSettingProfile.collectAsStateWithLifecycle(SettingsProfileEntity.DEFAULT)
     val importFormState by vm.configurationImportFormState.collectAsStateWithLifecycle()
     val exportFormState by vm.configurationExportFormState.collectAsStateWithLifecycle()
 
@@ -105,13 +113,26 @@ fun GeneralSettingsScreen(vm: GeneralSettingsScreenViewModel, navController: Nav
             if (importFormState.showImportForm) ImportForm(vm) else ExportForm(vm)
         }
     }
-    Column(Modifier.fillMaxWidth()) {
-        SettingsTopBar(navController, "General Settings")
-        Spacer(Modifier.height(20.dp))
-        UiSettingsSection(settingsProfile!!) { vm.onEvent(it) }
-        TTSSettingsSection(settingsProfile!!) { vm.onEvent(it) }
-        StorageSettingsSection(settingsProfile!!) { vm.onEvent(it) }
-        ConfigurationImportExportSettingsSection { vm.onEvent(it) }
+    LazyColumn(Modifier.fillMaxWidth()) {
+        item {
+            SettingsTopBar(navController, "General Settings")
+            Spacer(Modifier.height(20.dp))
+        }
+        item {
+            UiSettingsSection(settingsProfile!!) { vm.onEvent(it) }
+        }
+        item {
+            NotificationSettingsSection(settingsProfile!!) { vm.onEvent(it) }
+        }
+        item {
+            TTSSettingsSection(settingsProfile!!) { vm.onEvent(it) }
+        }
+        item {
+            StorageSettingsSection(settingsProfile!!) { vm.onEvent(it) }
+        }
+        item {
+            ConfigurationImportExportSettingsSection { vm.onEvent(it) }
+        }
     }
 }
 
@@ -121,7 +142,7 @@ fun UiSettingsSection(settingsProfile: SettingsProfileEntity, onEvent: (GeneralS
     var expandedThemeOptionSelector by remember { mutableStateOf(false) }
 
     Text("UI", style = MaterialTheme.typography.titleMedium)
-    Spacer(Modifier.height(10.dp))
+    Spacer(Modifier.height(15.dp))
     ExposedDropdownMenuBox(
         expanded = expandedThemeOptionSelector,
         onExpandedChange = { expandedThemeOptionSelector = it }
@@ -152,19 +173,85 @@ fun UiSettingsSection(settingsProfile: SettingsProfileEntity, onEvent: (GeneralS
             }
         }
     }
-    Spacer(Modifier.height(5.dp))
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Switch(checked = settingsProfile.settingsSafetyButtonEnabled, onCheckedChange = { onEvent(GeneralSettingsScreenEvent.SafetyButtonEnabledChanged(it)) })
+    Spacer(Modifier.height(10.dp))
+    Row(
+        modifier = Modifier.padding(top = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Switch(
+            checked = settingsProfile.settingsSafetyButtonEnabled,
+            onCheckedChange = { onEvent(GeneralSettingsScreenEvent.SafetyButtonEnabledChanged(it)) }
+        )
         Spacer(Modifier.width(10.dp))
-        Text("Enable Top Bar Safety Buttons")
+        Column {
+            Text("Enable Top Bar Safety Buttons", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                "If enabled, in order to access the settings or connection statuses in main menu top bar, the user will have to hold the button for 750ms",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
-    Spacer(Modifier.height(5.dp))
+    Spacer(Modifier.height(10.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
         Switch(checked = settingsProfile.showTopicRouteInStream, onCheckedChange = { onEvent(GeneralSettingsScreenEvent.ShowTopicRouteInStreamChanged(it)) })
         Spacer(Modifier.width(10.dp))
         Text("Show Topic Route In Stream")
     }
+    HorizontalDivider(modifier = Modifier.padding(vertical = 15.dp), thickness = 2.dp, color = MaterialTheme.colorScheme.surfaceContainerHigh)
+}
+
+@Composable
+fun NotificationSettingsSection(settingsProfile: SettingsProfileEntity, onEvent: (GeneralSettingsScreenEvent) -> Unit) {
+    var localDisconnectAlertSoundLevel by remember { mutableDoubleStateOf(settingsProfile.disconnectAlertSoundLevel) }
+
+    Text("Notifications", style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(15.dp))
+    Row(
+        modifier = Modifier.padding(top = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Switch(
+            checked = settingsProfile.recalibrateNotificationSoundLevel,
+            onCheckedChange = { onEvent(GeneralSettingsScreenEvent.RecalibrateNotificationSoundLevelChanged(it)) }
+        )
+        Spacer(Modifier.width(10.dp))
+        Column {
+            Text("Recalibrate Notification Volume", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                "If enabled, the notification volume will be interpreted as an absolute value, not relative to the current channel sound levels defined by the user",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+    Spacer(Modifier.height(10.dp))
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+    ) {
+        Text("Disconnect Alert Volume")
+        Spacer(Modifier.height(10.dp))
+        Slider(
+            value = settingsProfile.disconnectAlertSoundLevel.toFloat(),
+            onValueChange = {
+                localDisconnectAlertSoundLevel = it.toDouble()
+                onEvent(GeneralSettingsScreenEvent.DisconnectAlertSoundLevelChanged(it.toDouble()))
+            },
+            onValueChangeFinished = { onEvent(GeneralSettingsScreenEvent.PlayDisconnectAlertSound(localDisconnectAlertSoundLevel)) },
+            valueRange = 0f..1.0f,
+            steps = 19,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Text(
+            modifier = Modifier.fillMaxWidth(),
+            text = "${round(settingsProfile.disconnectAlertSoundLevel * 100).toInt()}%",
+            style = MaterialTheme.typography.bodySmall,
+            textAlign = TextAlign.Center
+        )
+    }
+    HorizontalDivider(modifier = Modifier.padding(vertical = 15.dp), thickness = 2.dp, color = MaterialTheme.colorScheme.surfaceContainerHigh)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -173,7 +260,7 @@ fun TTSSettingsSection(settingsProfile: SettingsProfileEntity, onEvent: (General
     var expandedTTSLanguageSelector by remember { mutableStateOf(false) }
 
     Text("TTS", style = MaterialTheme.typography.titleMedium)
-    Spacer(Modifier.height(10.dp))
+    Spacer(Modifier.height(15.dp))
     ExposedDropdownMenuBox(
         expanded = expandedTTSLanguageSelector,
         onExpandedChange = { expandedTTSLanguageSelector = it }
@@ -204,7 +291,7 @@ fun TTSSettingsSection(settingsProfile: SettingsProfileEntity, onEvent: (General
             }
         }
     }
-    Spacer(Modifier.height(15.dp))
+    HorizontalDivider(modifier = Modifier.padding(vertical = 15.dp), thickness = 2.dp, color = MaterialTheme.colorScheme.surfaceContainerHigh)
 }
 
 @Composable
@@ -213,7 +300,7 @@ fun StorageSettingsSection(settingsProfile: SettingsProfileEntity, onEvent: (Gen
 
     LaunchedEffect(settingsProfile.defaultMessageAge) { defaultMessageAgeValue = "${settingsProfile.defaultMessageAge}" }
     Text("Storage", style = MaterialTheme.typography.titleMedium)
-    Spacer(Modifier.height(10.dp))
+    Spacer(Modifier.height(15.dp))
     OutlinedTextField(
         value = defaultMessageAgeValue,
         onValueChange = {
@@ -224,15 +311,21 @@ fun StorageSettingsSection(settingsProfile: SettingsProfileEntity, onEvent: (Gen
         keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None, keyboardType = KeyboardType.Number),
         modifier = Modifier.fillMaxWidth()
     )
-    Spacer(Modifier.height(15.dp))
+    HorizontalDivider(modifier = Modifier.padding(vertical = 15.dp), thickness = 2.dp, color = MaterialTheme.colorScheme.surfaceContainerHigh)
 }
 
 @Composable
 fun ConfigurationImportExportSettingsSection(onEvent: (GeneralSettingsScreenEvent) -> Unit) {
     Text("Configuration Import/Export", style = MaterialTheme.typography.titleMedium)
+    Spacer(Modifier.height(15.dp))
+    Text(
+        "Import supported for files with .mastermqtt extension. Exported file is named \"configuration.mastermqtt\" and is stored in downloads folder",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
     Spacer(Modifier.height(10.dp))
     SettingActionCard("Import", Icons.Filled.Download, onClick = { onEvent(GeneralSettingsScreenEvent.ToggleConfigurationImportForm) }) { }
-    Spacer(Modifier.height(5.dp))
+    Spacer(Modifier.height(10.dp))
     SettingActionCard("Export", Icons.Filled.Upload, onClick = { onEvent(GeneralSettingsScreenEvent.ToggleConfigurationExportForm) }) { }
 }
 
@@ -372,6 +465,7 @@ fun ImportBrokerContainer(broker: BrokerConfiguration) {
                 broker.clientId,
                 broker.keepAliveInterval,
                 broker.alertWhenDisconnected,
+                broker.alertDisconnectsThreshold,
                 broker.cleanStart,
                 broker.reconnectAttempts,
                 broker.reconnectInterval,
@@ -443,6 +537,7 @@ fun ExportBrokerContainer(
                 broker.clientId,
                 broker.keepAliveInterval,
                 broker.alertWhenDisconnected,
+                broker.alertDisconnectsThreshold,
                 broker.cleanStart,
                 broker.reconnectAttempts,
                 broker.reconnectInterval,
@@ -488,6 +583,7 @@ fun ImportTopicContainer(topic: TopicConfiguration) {
                 topic.ignoreBedTime,
                 topic.notificationSoundLevel,
                 topic.notificationSoundText,
+                topic.showJsonKeys,
                 topic.payloadContent,
                 topic.messageAge
             )
@@ -541,6 +637,7 @@ fun ExportTopicContainer(
                 topic.ignoreBedTime,
                 topic.notificationSoundLevel,
                 topic.notificationSoundText,
+                topic.showJsonKeys,
                 topic.payloadContent,
                 topic.messageAge
             )
@@ -554,6 +651,7 @@ fun BrokerInfoContainer(
     clientId: String,
     keepAliveInterval: Int,
     alertWhenDisconnected: Boolean,
+    alertDisconnectsThreshold: Int?,
     cleanStart: Boolean,
     reconnectAttempts: Int?,
     reconnectInterval: Int,
@@ -575,7 +673,12 @@ fun BrokerInfoContainer(
         ItemProperty(
             "Alert When Disconnected",
             if (alertWhenDisconnected) "Yes" else "No",
-            Icons.Filled.CleaningServices
+            Icons.Filled.SystemSecurityUpdateWarning
+        )
+        ItemProperty(
+            "Alert Disconnects Threshold",
+            "${alertDisconnectsThreshold ?: "None"}",
+            Icons.Filled.Numbers
         )
         ItemProperty(
             "Clean Start",
@@ -608,6 +711,7 @@ fun TopicInfoContainer(
     ignoreBedTime: Boolean,
     notificationSoundLevel: Double?,
     notificationSoundText: String?,
+    showJsonKeysInPayload: Boolean,
     payloadContent: String?,
     messageAge: Int
 ) {
@@ -639,6 +743,11 @@ fun TopicInfoContainer(
         ItemProperty(
             "NotificationSoundText", notificationSoundText ?: "None",
             Icons.Filled.SpatialAudio
+        )
+        ItemProperty(
+            "Show JSON Keys In Payload",
+            if (showJsonKeysInPayload) "Yes" else "No",
+            Icons.Filled.Code
         )
         ItemProperty(
             "Notification Body",

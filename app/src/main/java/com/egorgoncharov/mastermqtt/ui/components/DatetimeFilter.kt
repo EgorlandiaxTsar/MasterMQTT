@@ -50,15 +50,19 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun StreamDateTimeFilter(
     modifier: Modifier = Modifier,
+    fromDate: LocalDate? = null,
+    toDate: LocalDate? = null,
+    startQuarter: Int = 0,
+    endQuarter: Int = 0,
     onStartDateSelected: (LocalDate?) -> Unit = {},
     onEndDateSelected: (LocalDate?) -> Unit = {},
     onTimeRangeChanged: (startQuarter: Int, endQuarter: Int) -> Unit = { _, _ -> }
 ) {
     var showStartPicker by remember { mutableStateOf(false) }
     var showEndPicker by remember { mutableStateOf(false) }
-    var startDate by remember { mutableStateOf<LocalDate?>(null) }
-    var endDate by remember { mutableStateOf<LocalDate?>(null) }
-    var sliderRange by remember { mutableStateOf(0f..96f) }
+    var startDate by remember { mutableStateOf<LocalDate?>(fromDate) }
+    var endDate by remember { mutableStateOf<LocalDate?>(toDate) }
+    var sliderRange by remember { mutableStateOf(startQuarter.toFloat()..endQuarter.toFloat()) }
     val startPickerState = rememberDatePickerState()
     val endPickerState = rememberDatePickerState()
     val labelFmt = remember { DateTimeFormatter.ofPattern("d MMM") }

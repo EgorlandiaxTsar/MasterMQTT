@@ -38,6 +38,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navDeepLink
 import com.egorgoncharov.mastermqtt.configuration.ConfigurationEntityConverter
 import com.egorgoncharov.mastermqtt.manager.ConfigurationManager
+import com.egorgoncharov.mastermqtt.manager.NotificationManager
 import com.egorgoncharov.mastermqtt.manager.SoundManager
 import com.egorgoncharov.mastermqtt.manager.StorageManager
 import com.egorgoncharov.mastermqtt.manager.mqtt.MqttManager
@@ -83,7 +84,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val app = application as MasterMqttApp
             val db = app.databaseManager.db!!
-            val settingsProfile by db.settingsProfilesDao().streamMainSettingsProfile().collectAsStateWithLifecycle(initialValue = SettingsProfileEntity.DUMMY)
+            val settingsProfile by db.settingsProfilesDao().streamMainSettingsProfile().collectAsStateWithLifecycle(initialValue = SettingsProfileEntity.DEFAULT)
             LaunchedEffect(Unit) { db.settingsProfilesDao().createMainSettingsProfileIfNotExists() }
             AppTheme(themeOption = settingsProfile?.theme ?: ThemeOption.SYSTEM) {
                 val navController = rememberNavController()
@@ -98,6 +99,7 @@ class MainActivity : ComponentActivity() {
                             messageDao = db.messageDao(),
                             settingsProfileDao = db.settingsProfilesDao(),
                             mqttManager = app.mqttManager,
+                            notificationManager = app.notificationManager,
                             storageManager = app.storageManager,
                             soundManager = app.soundManager,
                             configurationManager = app.configurationManager,
@@ -134,6 +136,7 @@ private fun AppNavHost(
     messageDao: MessageDao,
     settingsProfileDao: SettingsProfileDao,
     mqttManager: MqttManager,
+    notificationManager: NotificationManager,
     storageManager: StorageManager,
     soundManager: SoundManager,
     configurationManager: ConfigurationManager,
@@ -175,7 +178,7 @@ private fun AppNavHost(
                 Column(Modifier.fillMaxSize()) {
                     GeneralSettingsScreen(
                         vm = viewModel(
-                            factory = GeneralSettingsScreenViewModel.Factory(brokerDao, topicDao, settingsProfileDao, configurationManager, configurationEntityConverter)
+                            factory = GeneralSettingsScreenViewModel.Factory(brokerDao, topicDao, settingsProfileDao, soundManager, configurationManager, configurationEntityConverter)
                         ),
                         navController = navController
                     )
@@ -192,7 +195,7 @@ private fun AppNavHost(
                 Column(Modifier.fillMaxSize()) {
                     val topicId = backStackEntry.arguments?.getString("topicId")
                     val showBrokersView = backStackEntry.arguments?.getString("showBrokersView") == "true"
-                    val vm = viewModel<StreamScreenViewModel>(factory = StreamScreenViewModel.Factory(brokerDao, topicDao, messageDao, settingsProfileDao, mqttManager))
+                    val vm = viewModel<StreamScreenViewModel>(factory = StreamScreenViewModel.Factory(brokerDao, topicDao, messageDao, settingsProfileDao, mqttManager, notificationManager))
                     if (topicId != null) {
                         LaunchedEffect(Unit) {
                             if (!vm.isDeepLinkBound()) {

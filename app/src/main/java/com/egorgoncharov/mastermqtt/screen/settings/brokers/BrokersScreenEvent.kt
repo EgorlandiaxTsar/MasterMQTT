@@ -16,6 +16,7 @@ sealed interface BrokersScreenEvent {
 
     data class ConnectionTypeChanged(val connectionType: ConnectionType) : BrokersScreenEvent
     data class AlertWhenDisconnectedChanged(val alertWhenDisconnected: Boolean) : BrokersScreenEvent
+    data class AlertDisconnectsThresholdChanged(val alertDisconnectsThreshold: String) : BrokersScreenEvent
     data class ClientIdChanged(val clientId: String) : BrokersScreenEvent
     data class KeepAliveIntervalChanged(val keepAliveInterval: String) : BrokersScreenEvent
     data class CleanStartChanged(val cleanStart: Boolean) : BrokersScreenEvent

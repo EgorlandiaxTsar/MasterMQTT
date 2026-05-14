@@ -14,6 +14,8 @@ import com.egorgoncharov.mastermqtt.model.entity.TopicEntity
 import com.egorgoncharov.mastermqtt.model.types.ConnectionType
 import com.egorgoncharov.mastermqtt.model.types.MqttConnectionState
 import com.hivemq.client.mqtt.datatypes.MqttQos
+import com.hivemq.client.mqtt.exceptions.ConnectionFailedException
+import com.hivemq.client.mqtt.exceptions.MqttClientStateException
 import com.hivemq.client.mqtt.lifecycle.MqttDisconnectSource
 import com.hivemq.client.mqtt.mqtt5.Mqtt5AsyncClient
 import com.hivemq.client.mqtt.mqtt5.Mqtt5Client
@@ -94,7 +96,7 @@ open class MqttManager(
             clients.update { (it - broker.id).toMutableMap() }
             subscriptionsSyncJobs.remove(broker.id)?.cancel()
         }
-        if (clients.value[broker.id]?.state in listOf(MqttConnectionState.RECONNECTING, MqttConnectionState.CONNECTED)) {
+        if (clients.value[broker.id]?.state in listOf(MqttConnectionState.RECONNECTING, MqttConnectionState.CONNECTED, MqttConnectionState.INTERMEDIATE)) {
             disconnect(broker, updateState = false) { remove(); then?.invoke() }
         } else {
             remove()
@@ -120,7 +122,19 @@ open class MqttManager(
             .cleanStart(broker.cleanStart)
             .send()
             .handle { _, throwable ->
-                updateClient(broker.id) { it.copy(state = if (throwable == null) MqttConnectionState.CONNECTED else MqttConnectionState.DISCONNECTED_FAILED) }
+                if (throwable is MqttClientStateException) {
+                    return@handle
+                }
+                updateClient(broker.id) {
+                    it.copy(
+                        state =
+                            when (throwable) {
+                                null -> MqttConnectionState.CONNECTED
+                                is ConnectionFailedException if it.state == MqttConnectionState.DISCONNECTED -> MqttConnectionState.DISCONNECTED
+                                else -> MqttConnectionState.DISCONNECTED_FAILED
+                            }
+                    )
+                }
                 if (throwable == null && !subscriptionsSyncJobs.containsKey(broker.id)) subscriptionsSyncJobs[broker.id] =
                     syncTopics(clients.value[broker.id]!!)
                 if (then != null) then()
@@ -131,10 +145,11 @@ open class MqttManager(
     fun disconnect(broker: BrokerEntity, updateState: Boolean = true, then: (() -> Unit)? = null) {
         if (!clients.value.containsKey(broker.id)) return
         val connection = clients.value[broker.id]!!
-        if (connection.state !in listOf(MqttConnectionState.CONNECTED, MqttConnectionState.RECONNECTING)) return
+        if (connection.state !in listOf(MqttConnectionState.CONNECTED, MqttConnectionState.RECONNECTING, MqttConnectionState.INTERMEDIATE)) return
         scope.launch {
             try {
                 withContext(NonCancellable) {
+                    updateClient(broker.id) { it.copy(state = MqttConnectionState.DISCONNECTED) }
                     connection.client.disconnect().whenComplete { _, _ -> then?.invoke() }
                     if (broker.connected && updateState) brokerDao.save(broker.copy(connected = false))
                 }
@@ -146,7 +161,6 @@ open class MqttManager(
 
     @SuppressLint("CheckResult")
     protected fun buildConnection(broker: BrokerEntity): Mqtt5AsyncClient {
-        var retryCount = 0
         return Mqtt5Client.builder()
             .identifier(broker.clientId)
             .serverHost(broker.host)
@@ -166,23 +180,29 @@ open class MqttManager(
                         context.reconnector.reconnect(false)
                     }
                     else -> {
-                        updateClient(broker.id) { it.copy(state = MqttConnectionState.RECONNECTING) }
-                        retryCount++
-                        if (broker.reconnectAttempts == null || retryCount <= broker.reconnectAttempts) {
+                        val connection = clients.value[broker.id] ?: return@addDisconnectedListener
+                        if (connection.state == MqttConnectionState.DISCONNECTED) {
+                            context.reconnector.reconnect(false)
+                            updateClient(broker.id) { it.copy(currentReconnectRetries = 0) }
+                            return@addDisconnectedListener
+                        }
+                        updateClient(broker.id) { it.copy(state = MqttConnectionState.RECONNECTING, currentReconnectRetries = it.currentReconnectRetries + 1) }
+                        if (broker.reconnectAttempts == null || connection.currentReconnectRetries <= broker.reconnectAttempts) {
                             context.reconnector.reconnect(true)
                         } else {
                             updateClient(broker.id) { it.copy(state = MqttConnectionState.DISCONNECTED_FAILED) }
                             context.reconnector.reconnect(false)
-                            retryCount = 0
+                            updateClient(broker.id) { it.copy(currentReconnectRetries = 0) }
                         }
                     }
                 }
             }
             .addConnectedListener {
-                if (clients.value[broker.id]?.state != MqttConnectionState.CONNECTED) {
+                val connection = clients.value[broker.id] ?: return@addConnectedListener
+                if (connection.state != MqttConnectionState.CONNECTED) {
                     updateClient(broker.id) { it.copy(state = MqttConnectionState.CONNECTED) }
                 }
-                retryCount = 0
+                updateClient(broker.id) { it.copy(currentReconnectRetries = 0) }
             }
             .apply {
                 if (broker.connectionType == ConnectionType.SSL) sslWithDefaultConfig()
@@ -289,7 +309,9 @@ open class MqttManager(
         )
         messageDao.save(notification)
         notificationManager.show(broker, topic, processedDescription)
-        soundManager.alert(topic, String(payload))
+        scope.launch {
+            soundManager.alert(topic, String(payload))
+        }
     }
 
     protected fun processPayload(payload: ByteArray, pattern: String?): Map<String, String?> {
